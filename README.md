@@ -1,168 +1,229 @@
-# ⚡ AURA STUDIO - Website Thương Mại Điện Tử Thời Trang Fullstack (Production-Grade)
+# ⚡ AURA STUDIO - Website Thương Mại Điện Tử Thời Trang Fullstack
 
-> Hệ thống website thương mại điện tử chuyên về thời trang Streetwear & Unisex cao cấp được xây dựng kiến trúc Fullstack hiện đại: **Frontend React (Vite)** giao diện Dark/Cyberpunk mượt mà, **Backend Node.js & Express RESTful API**, kết nối 100% **Cloud Database MongoDB Atlas** thực tế, tích hợp cổng thanh toán **MoMo & VNPay**, cổng hỗ trợ **Ticket & Live Chat**, trang **Tài khoản cá nhân (Customer Portal)** toàn diện và trang **Quản trị hệ thống (Admin Portal)** chuyên sâu.
+> **Hệ thống website thương mại điện tử chuyên về thời trang Streetwear & Unisex cao cấp.**
+> Dự án được xây dựng với kiến trúc Fullstack hiện đại: **Frontend React 19 (Vite)** mang phong cách Dark/Cyberpunk Glassmorphism mượt mà, **Backend Node.js & Express RESTful API**, kết nối trực tiếp **Cloud Database MongoDB Atlas** (100% dữ liệu thực tế), tích hợp cổng thanh toán **MoMo & VNPay Sandbox**, hệ thống **Hỗ Trợ & Live Chat CSKH**, **Cổng Khách Hàng (Customer Portal)** toàn diện 7 phân hệ và **Trang Quản Trị Hệ Thống (Admin Portal - `/admin`)** chuyên sâu.
 
----
-
-## 🌟 Tổng Quan Tính Năng Hệ Thống
-
-### 1. Phía Khách Hàng (Customer Experience)
-- **Giao diện & Trải nghiệm đỉnh cao**:
-  - Phong cách thiết kế Dark & Cyberpunk hiện đại, kính mờ Glassmorphism, đổ bóng mượt mà.
-  - Micro-interactions khi rê chuột, chuyển ảnh đa góc nhìn, phóng to chi tiết sản phẩm.
-  - Pháo hoa chúc mừng Confetti rực rỡ khi hoàn tất đặt hàng thành công.
-- **Hero & Lookbook sống động**:
-  - Banner thời trang phong cách editorial, bộ sưu tập giới hạn mùa mới.
-  - Đồng hồ đếm ngược Flash Sale thời gian thực (Giờ : Phút : Giây) kèm tính năng 1-click sao chép mã giảm giá.
-- **Bộ lọc & Tìm kiếm thông minh**:
-  - Lọc theo danh mục: Áo thun, Áo khoác, Sơ mi, Quần & Shorts, Váy & Đầm, Phụ kiện.
-  - Lọc kích cỡ (S, M, L, XL, XXL) và thanh kéo khoảng giá trực quan.
-  - Sắp xếp: Mới nhất, Bán chạy nhất, Đánh giá cao, Giá tăng/giảm dần.
-  - Thanh tìm kiếm gợi ý sản phẩm ngay khi gõ từ khóa.
-- **Trang Chi Tiết Sản Phẩm (Product Details)**:
-  - Thư viện ảnh sản phẩm nhiều góc độ, click chuyển ảnh chính tức thì.
-  - Bảng quy đổi kích cỡ (Size Guide) chuẩn Streetwear theo chiều cao & cân nặng.
-  - Chọn màu sắc với bảng màu trực quan (Color Swatches) và chọn size tương ứng.
-  - Hệ thống đánh giá & bình luận sao (1-5 sao) kèm hình ảnh phản hồi thực tế từ khách hàng đã mua.
-- **Giỏ Hàng & Khuyến Mãi (Cart Drawer)**:
-  - Thanh trượt giỏ hàng từ cạnh phải (Slide-in Drawer) tiện lợi.
-  - Thanh tiến trình Miễn Phí Giao Hàng (Tự động tính số tiền cần mua thêm để được Free Ship).
-  - Tăng giảm số lượng sản phẩm, xóa sản phẩm, tính toán giá tự động.
-  - Hỗ trợ mã giảm giá (Voucher): `STREETWEAR20` (Giảm 20%), `FREESHIP` (Miễn phí ship), `VIP50K` (Giảm 50k).
-- **Quy Trình Đặt Hàng & Thanh Toán Đa Kênh (Checkout Flow)**:
-  - Bước 1: Thông tin người nhận hàng — **Tự động điền theo Địa chỉ mặc định** đã cập nhật trong tài khoản cá nhân, kèm thanh chọn nhanh các địa chỉ đã lưu trong sổ địa chỉ.
-  - Bước 2: Phương thức thanh toán linh hoạt:
-    - **MoMo**: Tích hợp cổng thanh toán MoMo Sandbox QR/ATM chuẩn chữ ký điện tử HMAC-SHA256.
-    - **VNPay**: Tích hợp cổng thanh toán VNPAY-QR với thuật toán mã hóa kiểm thử HMAC-SHA512.
-    - **COD**: Thanh toán tiền mặt khi nhận hàng.
-  - Bước 3: Đặt hàng thành công, cấp **Mã Đơn Hàng (Order Code)** định dạng `AURA-XXXXXX`.
-- **Tra Cứu Đơn Hàng Nhanh Chóng (Order Tracking)**:
-  - Khách hàng có thể nhập mã đơn hàng bất kỳ để xem sơ đồ tiến trình giao hàng theo thời gian thực (Đã đặt ➔ Đang xử lý ➔ Đang giao hàng ➔ Giao thành công).
-- **Thông Báo Nổi Thông Minh Hẹn Giờ Tự Tắt (Smart Notification Alerts)**:
-  - Tự động nhận diện sản phẩm trong giỏ hàng và danh sách yêu thích để thông báo: *"Sản phẩm bạn yêu thích vừa giảm 20%"* hoặc *"Size M sắp hết hàng"*.
-  - Tích hợp thanh thời gian đếm ngược (Countdown bar) và tự động tắt sau 5 giây.
+[![Node.js](https://img.shields.io/badge/Node.js-v20+-339933?style=flat&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![React](https://img.shields.io/badge/React-19.0-61DAFB?style=flat&logo=react&logoColor=black)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Vite-6.0-646CFF?style=flat&logo=vite&logoColor=white)](https://vitejs.dev/)
+[![MongoDB](https://img.shields.io/badge/MongoDB-Atlas_Cloud-47A248?style=flat&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
+[![JWT](https://img.shields.io/badge/JWT-Secure_Auth-000000?style=flat&logo=jsonwebtokens&logoColor=white)](https://jwt.io/)
+[![Security](https://img.shields.io/badge/Security-WAF_&_Honeypot-ff0055?style=flat)](https://github.com/Hoangphuc187/aura-fashion-ecommerce)
 
 ---
 
-### 2. Trang Tài Khoản Cá Nhân Toàn Diện (Customer Account Portal)
-Modal tài khoản cá nhân được tối ưu hóa với 7 phân hệ:
-1. **Hồ sơ của tôi**: Cập nhật Họ và tên, Email, Số điện thoại, Ngày sinh, Giới tính, Ảnh đại diện (Avatar).
-2. **Sổ địa chỉ nhận hàng (Address Book)**:
-   - Danh sách địa chỉ đã lưu.
-   - Thêm địa chỉ mới, Chỉnh sửa, Xóa địa chỉ.
-   - Thiết lập một địa chỉ làm **Địa chỉ mặc định** (tự động áp dụng khi đặt hàng).
-3. **Đơn hàng của tôi**:
-   - Phân loại trạng thái: Tất cả, Chờ xác nhận, Đang xử lý, Đang giao, Đã giao, Đã hủy, Hoàn tiền.
-   - Hỗ trợ **Khách hàng tự hủy đơn** khi đơn còn ở trạng thái "Chờ xác nhận" (tự động hoàn tồn kho và hoàn voucher).
-4. **Đánh giá của tôi (Reviews)**:
-   - Tab "Chưa đánh giá": Danh sách các sản phẩm thuộc đơn hàng `Đã giao` chờ khách đánh giá.
-   - Tab "Đã đánh giá": Lịch sử các nhận xét đã gửi.
-   - Cho phép chấm điểm 1-5 sao, viết nhận xét và **tải ảnh sản phẩm thực tế** lên đánh giá.
-5. **Kho Voucher của tôi**:
-   - Phân loại: Voucher khả dụng, Voucher đã dùng, Voucher hết hạn.
-   - Nút 1-click sao chép mã voucher nhanh chóng.
-6. **Sản phẩm yêu thích (Wishlist)**:
-   - Quản lý các mẫu đồ đã thích kèm nút thêm nhanh vào giỏ hàng.
-7. **Bảo mật & Thiết bị đăng nhập**:
-   - Đổi mật khẩu tài khoản (xác minh mật khẩu hiện tại, mã hóa Bcrypt).
-   - Danh sách thiết bị đăng nhập đang hoạt động.
-   - **Đăng xuất khỏi tất cả thiết bị**: Vô hiệu hóa ngay lập tức token của mọi phiên đăng nhập khác thông qua Token Versioning.
+## 📸 BỘ SƯU TẬP GIAO DIỆN HỆ THỐNG THỰC TẾ (TỪ A ĐẾN Z)
+
+Toàn bộ hình ảnh dưới đây được chụp trực tiếp từ hệ thống đang chạy thời gian thực với cơ sở dữ liệu MongoDB Atlas thực tế:
+
+### 🌟 PHẦN 1: TRẢI NGHIỆM KHÁCH HÀNG & MUA SẮM (STOREFRONT)
+
+#### 1. Trang Chủ AURA STUDIO — Hero Banner & Flash Sale Đếm Ngược
+*Giao diện Dark Mode chuẩn editorial, tích hợp thanh thông báo ưu đãi động, đồng hồ đếm ngược Flash Sale theo thời gian thực và các bộ sưu tập theo mùa.*
+![01_home_hero](docs/screenshots/01_home_hero.png)
 
 ---
 
-### 3. Cổng Hỗ Trợ Khách Hàng / FAQ / CSKH (`/support`)
-- **Câu hỏi thường gặp (FAQ Accordion)**: Giải đáp chi tiết các chính sách đổi hàng 30 ngày, hoàn tiền, thời gian giao hàng, quy định đồng kiểm hàng, hướng dẫn chọn size, bảo hành 6 tháng.
-- **Gửi Yêu Cầu Hỗ Trợ & Tạo Ticket**: Khách hàng điền form hỗ trợ sẽ nhận được mã vé hỗ trợ tự động (Ví dụ: `#TK-305265`) được lưu trực tiếp vào cơ sở dữ liệu.
-- **Tra Cứu Ticket**: Tra cứu tiến độ xử lý và phản hồi từ nhân viên chăm sóc khách hàng bằng mã Ticket.
-- **Trợ Lý Ảo / Live Chat Bot**: Chatbot AI trả lời tự động 24/7 về chọn size, giao nhận và chính sách đổi trả.
+#### 2. Danh Mục Sản Phẩm & Bộ Lọc Thông Minh (Filters & Search)
+*Bộ lọc đa tiêu chí: Lọc theo 6 danh mục thời trang, chọn kích cỡ (S, M, L, XL, XXL), thanh kéo khoảng giá linh hoạt và tìm kiếm gợi ý tức thì.*
+![02_catalog_filters](docs/screenshots/02_catalog_filters.png)
 
 ---
 
-### 4. Hệ Thống Quản Trị Hệ Thống Chuyên Sâu (Admin Portal — `/admin`)
-Hệ thống quản trị riêng biệt dành cho Admin tại đường dẫn `/admin`:
-- **Dashboard & Phân tích kinh doanh**:
-  - Thống kê doanh thu hôm nay, doanh thu tháng, tổng số đơn, đơn chờ xử lý, số lượng user, tỷ lệ chuyển đổi (Conversion Rate).
-  - Biểu đồ phân bổ doanh thu theo danh mục và danh sách Top sản phẩm bán chạy nhất.
-- **Quản lý Sản phẩm & Biến thể (Variants CRUD)**:
-  - Thêm, sửa, xóa, ẩn/hiện sản phẩm.
-  - Quản lý chi tiết biến thể: Kích thước (S, M, L, XL, XXL), Màu sắc, SKU, Chất liệu, Giá bán, Giá sale, Tồn kho.
-- **Quản lý Đơn hàng (Order Hub)**:
-  - Tìm kiếm, lọc theo trạng thái đơn hàng.
-  - Cập nhật trạng thái đơn: Xác nhận, Đang giao, Đã giao, Hủy đơn, Hoàn tiền (Refund).
-  - **In Hóa Đơn (Printable Invoice)**: Giao diện hóa đơn bán hàng chuyên nghiệp kèm mã QR, danh sách mặt hàng, sẵn sàng in hoặc xuất PDF.
-  - Tự động hoàn lại số lượng tồn kho và hoàn lại lượt sử dụng Voucher khi đơn bị hủy hoặc hoàn tiền.
-- **Quản lý Khách hàng (Customers)**:
-  - Danh sách người dùng, tìm kiếm theo tên, email, SĐT.
-  - Thống kê tổng số đơn hàng và tổng số tiền đã chi tiêu của từng khách hàng.
-  - Khóa tài khoản (Ban/Unban) và Đặt lại mật khẩu (Reset password) cho tài khoản.
-- **Quản lý Khuyến mãi & Coupon**:
-  - Tạo mới mã coupon: Giảm theo %, Giảm tiền mặt, Miễn phí vận chuyển (Freeship), Giá trị đơn tối thiểu, Giảm tối đa, Giới hạn lượt dùng toàn sàn, Giới hạn lượt dùng mỗi người, Ngày bắt đầu/kết thúc.
-  - Bật/tắt trạng thái kích hoạt mã.
-  - Hoàn lượt sử dụng mã thủ công khi cần.
-- **Quản lý Tồn kho (Inventory Tracking)**:
-  - Theo dõi số lượng tồn kho từng sản phẩm theo thời gian thực.
-  - Cảnh báo các mặt hàng sắp hết (`Kho <= 5`) hoặc đã hết hàng.
-  - Nút nhập hàng nhanh (Quick Restock) cập nhật trực tiếp vào database.
-- **Quản lý Đánh giá (Reviews Management)**:
-  - Duyệt, ẩn hoặc xóa nhận xét của khách hàng.
-- **Bàn Hỗ Trợ CSKH (Support Desk)**:
-  - Quản lý danh sách Ticket khiếu nại của khách hàng.
-  - Nhân viên/Admin trả lời trực tiếp vào Ticket và chuyển trạng thái hoàn tất (`Resolved`).
+#### 3. Modal Chi Tiết Sản Phẩm & Bảng Size Chuẩn Streetwear
+*Thư viện hình ảnh sắc nét, hiển thị huy hiệu Best Seller, chọn màu sắc trực quan (Color Swatches), bảng quy đổi kích cỡ chi tiết và danh sách đánh giá từ người mua.*
+![03_product_modal](docs/screenshots/03_product_modal.png)
 
 ---
 
-### 5. Kiến Trúc An Ninh & Bảo Mật Tuyệt Đối (Security Hardening)
-- **Bảo Vệ Bí Mật (No Secrets in Code)**: Toàn bộ khóa bảo mật (JWT Secret, API Key, Database URI, MoMo/VNPay credentials) được lưu trong file `.env` được bảo vệ bằng `.gitignore`, tuyệt đối không lọt vào Git history.
-- **Ẩn Đường Dẫn Admin (Stealth Cloaking)**: Các API quản trị viên và route admin trả về mã lỗi `404 Not Found` ngụy trang đối với các truy cập trái phép không có Token quyền Admin.
-- **Hệ Thống Khiên Chắn Chống Tấn Công (Security Shield)**:
-  - **Rate Limiting**: Giới hạn tần suất gửi request chống spam và brute-force.
-  - **Honeypot WAF**: Bẫy và chặn IP các bot tự động dò quét các file nhạy cảm (`/wp-admin`, `/.env`, `/phpmyadmin`).
-  - **Sanitize Input**: Ngăn chặn tấn công NoSQL Injection và XSS.
-  - **Token Versioning**: Thu hồi quyền truy cập tức thì khi đổi mật khẩu hoặc bấm đăng xuất khỏi tất cả thiết bị.
-  - **Bảo Vệ Giao Diện**: Vô hiệu hóa mở DevTools phím tắt, chặn sao chép nội dung trái phép.
+#### 4. Giỏ Hàng Trượt (Cart Drawer) & Thanh Tiến Trình Freeship
+*Thanh trượt từ cạnh phải mượt mà, tính toán tạm tính và phí vận chuyển tự động, thanh tiến trình đạt mốc miễn phí giao hàng (Free Shipping Progress Bar) và áp dụng voucher.*
+![04_cart_drawer](docs/screenshots/04_cart_drawer.png)
 
 ---
 
-## 🛠️ Công Nghệ Sử Dụng
+#### 5. Quy Trình Đặt Hàng & Thanh Toán (Checkout Modal)
+*Tự động lấy thông tin từ Sổ địa chỉ mặc định của khách hàng, tích hợp lựa chọn phương thức thanh toán linh hoạt: COD, Ví MoMo QR/ATM và Cổng VNPay.*
+![05_checkout_modal](docs/screenshots/05_checkout_modal.png)
+
+---
+
+#### 6. Tra Cứu Tiến Độ Vận Đơn Thời Gian Thực (Order Tracking)
+*Khách hàng nhập mã đơn hàng bất kỳ để theo dõi timeline 4 bước giao vận (Chờ xác nhận ➔ Đang xử lý ➔ Đang giao ➔ Giao thành công) kèm thông tin shipper và mã QR tra cứu.*
+![06_order_tracking](docs/screenshots/06_order_tracking.png)
+
+---
+
+#### 7. Cổng Hỗ Trợ Khách Hàng — Câu Hỏi Thường Gặp (FAQ Accordion)
+*Hệ thống giải đáp chi tiết các thắc mắc về chính sách đổi trả 30 ngày, hoàn tiền, đồng kiểm khi nhận hàng, hướng dẫn chọn size và bảo hành.*
+![07_support_faq](docs/screenshots/07_support_faq.png)
+
+---
+
+#### 8. Gửi Yêu Cầu Hỗ Trợ & Tạo Vé Hỗ Trợ (Ticket CSKH)
+*Khách hàng gửi yêu cầu hỗ trợ khi gặp vấn đề về đơn hàng, tự động cấp mã Ticket dạng `#TK-XXXXXX` lưu trực tiếp vào cơ sở dữ liệu.*
+![08_support_ticket_form](docs/screenshots/08_support_ticket_form.png)
+
+---
+
+#### 9. Trợ Lý Tư Vấn Ảo AI Tự Động 24/7 (Live Chat Assistant)
+*Chatbot tương tác thông minh giải đáp ngay lập tức về tư vấn chọn size theo chiều cao/cân nặng, tra cứu thời gian giao hàng và hotline CSKH.*
+![09_support_livechat_bot](docs/screenshots/09_support_livechat_bot.png)
+
+---
+
+#### 10. Modal Đăng Nhập & Đăng Ký Bảo Mật Chuẩn JWT
+*Hỗ trợ đăng nhập email/mật khẩu mã hóa Bcrypt, bảo vệ khóa tài khoản khi nhập sai quá 5 lần, tích hợp đăng nhập nhanh qua Google & Facebook OAuth 2.0.*
+![10_auth_modal](docs/screenshots/10_auth_modal.png)
+
+---
+
+### 👤 PHẦN 2: TRUNG TÂM TÀI KHOẢN CÁ NHÂN (CUSTOMER ACCOUNT PORTAL)
+
+#### 11. Menu Người Dùng Trên Thanh Điều Hướng (Navbar Dropdown)
+*Truy cập nhanh vào các phân hệ tài khoản cá nhân, xem trạng thái đăng nhập và vai trò người dùng.*
+![11_user_dropdown_menu](docs/screenshots/11_user_dropdown_menu.png)
+
+---
+
+#### 12. Hồ Sơ Cá Nhân (Customer Profile)
+*Quản lý và cập nhật thông tin cá nhân: Họ và tên, Email, Số điện thoại, Ngày sinh, Giới tính và liên kết ảnh đại diện avatar.*
+![12_customer_profile](docs/screenshots/12_customer_profile.png)
+
+---
+
+#### 13. Sổ Địa Chỉ Nhận Hàng (Address Book)
+*Thêm mới, chỉnh sửa, xóa địa chỉ giao hàng và chỉ định một địa chỉ làm **Địa chỉ mặc định** để tự động điền khi thanh toán.*
+![13_customer_address_book](docs/screenshots/13_customer_address_book.png)
+
+---
+
+#### 14. Quản Lý Đơn Mua Theo 6 Trạng Thái (My Orders)
+*Lọc đơn hàng theo từng tab: Tất cả, Chờ xác nhận, Đang xử lý, Đang giao, Đã giao, Đã hủy, Hoàn tiền. Hỗ trợ khách tự hủy đơn hợp lệ khi chưa gửi hàng.*
+![14_customer_orders](docs/screenshots/14_customer_orders.png)
+
+---
+
+#### 15. Đánh Giá Sản Phẩm (Reviews & Ratings)
+*Khách hàng chỉ được đánh giá các sản phẩm thuộc đơn hàng **Đã giao thành công**. Cho phép chấm điểm 1-5 sao, nhận xét và tải ảnh phản hồi thực tế.*
+![15_customer_reviews](docs/screenshots/15_customer_reviews.png)
+
+---
+
+#### 16. Kho Voucher Cá Nhân (Voucher Wallet)
+*Quản lý danh sách voucher cá nhân theo 3 tab: Voucher khả dụng, Đã dùng, Hết hạn. Nút 1-click sao chép mã coupon nhanh chóng.*
+![16_customer_vouchers](docs/screenshots/16_customer_vouchers.png)
+
+---
+
+#### 17. Trung Tâm Bảo Mật & Quản Lý Thiết Bị Đăng Nhập
+*Đổi mật khẩu tài khoản bảo mật, kiểm tra danh sách thiết bị đang đăng nhập và tính năng **Đăng xuất khỏi tất cả thiết bị** vô hiệu hóa token từ xa.*
+![17_customer_security](docs/screenshots/17_customer_security.png)
+
+---
+
+### ⚙️ PHẦN 3: HỆ THỐNG QUẢN TRỊ ADMIN CHUYÊN NGHIỆP (`/admin`)
+
+#### 18. Bảng Điều Khiển Tổng Quan (Admin Dashboard & Analytics)
+*Báo cáo số liệu kinh doanh: Tổng doanh thu hôm nay, doanh thu tháng, số lượng đơn hàng, người dùng mới, biểu đồ phân tích và danh sách Top sản phẩm.*
+![18_admin_dashboard](docs/screenshots/18_admin_dashboard.png)
+
+---
+
+#### 19. Quản Trị Danh Mục & Kho Sản Phẩm (Products Management)
+*Giao diện bảng dữ liệu trực quan: Xem tồn kho, trạng thái bán, thêm sản phẩm mới kèm tải nhiều ảnh, quản lý các biến thể kích thước và màu sắc.*
+![19_admin_products](docs/screenshots/19_admin_products.png)
+
+---
+
+#### 20. Quản Lý Đơn Hàng Toàn Diện (Orders Hub)
+*Theo dõi danh sách đơn hàng toàn sàn, lọc theo trạng thái, cập nhật tiến độ giao vận, hủy đơn hoặc hoàn tiền kèm cơ chế tự động hoàn lại số lượng tồn kho và hoàn voucher.*
+![20_admin_orders](docs/screenshots/20_admin_orders.png)
+
+---
+
+#### 21. Modal In Hóa Đơn Điện Tử Bán Hàng (Printable Invoice with QR)
+*Mẫu hóa đơn chuyên nghiệp hiển thị đầy đủ thông tin khách hàng, chi tiết đơn giá, mã QR xác thực và nút In / Lưu PDF chuẩn thương mại.*
+![21_admin_invoice_modal](docs/screenshots/21_admin_invoice_modal.png)
+
+---
+
+#### 22. Quản Trị Kho Vận & Cảnh Báo Tồn Kho (Inventory Tracking)
+*Theo dõi số lượng tồn kho từng mặt hàng theo thời gian thực, tự động gắn cờ cảnh báo các sản phẩm sắp hết hàng (`Kho <= 5`) và nút Nhập hàng nhanh.*
+![22_admin_inventory](docs/screenshots/22_admin_inventory.png)
+
+---
+
+#### 23. Quản Trị Khuyến Mãi & Mã Giảm Giá (Coupons Management)
+*Tạo và quản lý mã coupon: Giảm giá theo %, Giảm theo số tiền, Đơn tối thiểu, Giảm tối đa, Giới hạn lượt dùng toàn sàn, Giới hạn mỗi khách hàng và Thời hạn sử dụng.*
+![23_admin_coupons](docs/screenshots/23_admin_coupons.png)
+
+---
+
+#### 24. Trung Tâm Xử Lý Vé Hỗ Trợ Khách Hàng (Support Desk)
+*Bộ phận CSKH tiếp nhận các Ticket khiếu nại, phản hồi trực tiếp cho khách hàng và đóng Ticket sau khi xử lý thành công.*
+![24_admin_support_tickets](docs/screenshots/24_admin_support_tickets.png)
+
+---
+
+## 🌟 Bảng Tổng Hợp Tính Năng Hệ Thống
+
+| Phân hệ | Tính năng nổi bật | Công nghệ / Ghi chú |
+| :--- | :--- | :--- |
+| **Giao diện Khách hàng** | Dark & Cyberpunk Glassmorphism, Micro-interactions, Confetti ăn mừng | React 19, CSS Modern Tokens |
+| **Tìm kiếm & Bộ lọc** | Lọc theo 6 danh mục, 5 size, thanh trượt giá, sắp xếp đa chiều | Client-side & Server query |
+| **Giỏ hàng & Đặt hàng** | Drawer trượt, freeship bar, áp dụng mã giảm giá, tự động điền địa chỉ | React Context & LocalStorage |
+| **Cổng thanh toán** | COD, MoMo QR/ATM (HMAC-SHA256), VNPay (HMAC-SHA512) | Sandbox API chuẩn bảo mật ngân hàng |
+| **Tra cứu đơn hàng** | Timeline vận chuyển 4 bước thời gian thực, mã QR kiểm tra | REST API `/api/orders/track/:code` |
+| **Hỗ trợ & Live Chat** | FAQ Accordion, Tạo Ticket `#TK-XXXXXX`, Bot tư vấn AI 24/7 | MongoDB Collection `Ticket` & `FAQ` |
+| **Tài khoản cá nhân** | Hồ sơ, Sổ địa chỉ mặc định, Đơn mua 6 trạng thái, Đánh giá có ảnh, Kho voucher, Bảo mật đa thiết bị | JWT Authentication & Token Versioning |
+| **Admin Dashboard** | Thống kê doanh thu, biểu đồ phân tích, tỷ lệ chuyển đổi | Aggregation Pipeline MongoDB |
+| **Admin Kho & Đơn hàng** | Cập nhật trạng thái đơn, in hóa đơn VAT QR, cảnh báo hết hàng, hoàn voucher/stock khi hủy đơn | Transaction Logic & Mongoose Models |
+| **Bảo mật hệ thống** | Ẩn route Admin (404 Cloaking), Rate Limit, Honeypot WAF, Input Sanitization | Express Security Middlewares |
+
+---
+
+## 🔑 Tài Khoản Trải Nghiệm Mẫu
+
+| Tài khoản | Email | Mật khẩu | Quyền hạn |
+| :--- | :--- | :--- | :--- |
+| **Quản trị viên (Admin)** | `admin@streetwear.vn` | `admin123` | Toàn quyền trang `/admin`, duyệt đơn, quản lý kho, coupon, ticket |
+| **Khách hàng (Customer)** | `khachhang@gmail.com` | `user123` | Đã có lịch sử đơn hàng đã giao, đánh giá sản phẩm có ảnh, voucher |
+| **Khách hàng (Đã có địa chỉ)** | `khachhang@aura.vn` | `Password123@` | Đã lưu sẵn sổ địa chỉ, trải nghiệm tự động điền form checkout |
+
+---
+
+## 🛠️ Công Nghệ & Thư Viện
 
 - **Frontend**:
   - React 19 (Vite)
-  - Vanilla Modern CSS (Design Tokens, Glassmorphism, Micro-animations)
-  - Lucide React (Bộ biểu tượng hiện đại)
-  - Canvas Confetti (Hiệu ứng pháo hoa ăn mừng)
+  - Vanilla Modern CSS (Design Tokens, Glassmorphism, CSS Grid & Flexbox)
+  - Lucide React (Icons)
+  - Canvas Confetti
 - **Backend**:
-  - Node.js & Express.js (Kiến trúc RESTful API chuẩn Enterprise)
-  - Mongoose & MongoDB Atlas (Cơ sở dữ liệu đám mây đồng bộ 100% dữ liệu thực tế)
-  - JWT (JSON Web Token) & Bcryptjs (Bảo mật tài khoản đa lớp)
-  - Crypto HMAC-SHA256 & HMAC-SHA512 (Xác thực chữ ký cổng thanh toán)
-
----
-
-## 🔑 Tài Khoản Đăng Nhập Hệ Thống
-
-| Loại tài khoản | Email | Mật khẩu | Quyền hạn & Tính năng |
-| :--- | :--- | :--- | :--- |
-| **Quản trị viên (Admin)** | `admin@streetwear.vn` | `admin123` | Toàn quyền trang Quản trị `/admin`, duyệt đơn, quản lý kho, coupon, user |
-| **Khách hàng (Customer)** | `khachhang@gmail.com` | `user123` | Mua hàng, xem lịch sử đơn hàng đã giao, đánh giá sản phẩm |
-| **Khách hàng (Đã có địa chỉ)** | `khachhang@aura.vn` | `Password123@` | Đã lưu sẵn sổ địa chỉ, trải nghiệm tự động điền form thanh toán |
+  - Node.js & Express.js (RESTful API Architecture)
+  - Mongoose & MongoDB Atlas
+  - JWT (JSON Web Tokens) & Bcryptjs
+  - Crypto (HMAC-SHA256 MoMo, HMAC-SHA512 VNPay)
+  - Express Rate Limit & Custom Honeypot WAF
 
 ---
 
 ## 🚀 Hướng Dẫn Cài Đặt & Khởi Chạy
 
-### 1. Cài đặt các thư viện phụ thuộc:
+### 1. Cài đặt các gói thư viện:
 ```bash
-# Cài đặt cho Backend
+# Cài đặt Backend
 cd server
 npm install
 
-# Cài đặt cho Frontend
+# Cài đặt Frontend
 cd ../client
 npm install
 ```
 
-### 2. Cấu hình biến môi trường:
-Tạo file `server/.env` dựa trên file mẫu `server/.env.example`:
+### 2. Cấu hình file môi trường:
+Tạo file `server/.env` dựa theo file `server/.env.example`:
 ```env
 PORT=5000
 NODE_ENV=development
@@ -183,7 +244,7 @@ VNPAY_HASH_SECRET=your_vnpay_hash_secret
 VNPAY_URL=https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
 ```
 
-### 3. Khởi chạy dự án:
+### 3. Khởi chạy hệ thống:
 
 - **Khởi chạy Backend (Port 5000)**:
   ```bash
@@ -196,7 +257,13 @@ VNPAY_URL=https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
   npm run dev
   ```
 
-Mở trình duyệt truy cập:
-* 🛍️ **Cửa hàng:** [http://localhost:3000](http://localhost:3000)
-* ⚙️ **Trang Quản Trị chỉ vào được khi dùng tk admin:** [http://localhost:3000/admin](http://localhost:3000/admin)
-* 📚 **API Dashboard:** [http://localhost:5000](http://localhost:5000)
+### 4. Truy cập hệ thống:
+* 🛍️ **Cửa hàng thời trang:** [http://localhost:3000](http://localhost:3000)
+* ⚙️ **Trang Quản Trị Hệ Thống (chỉ truy cập được khi đăng nhập tài khoản Admin):** [http://localhost:3000/admin](http://localhost:3000/admin)
+* 📚 **API Backend Server:** [http://localhost:5000](http://localhost:5000)
+
+---
+
+## 📄 Bản Quyền & Giấy Phép
+Dự án được phát triển phục vụ mục đích học tập và triển khai thực tế hệ thống Thương Mại Điện Tử Thời Trang Chuẩn Doanh Nghiệp.
+© 2026 AURA STUDIO. All rights reserved.

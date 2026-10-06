@@ -148,24 +148,6 @@ Toàn bộ hình ảnh dưới đây được chụp trực tiếp từ hệ th�
 
 ---
 
-#### 22. Quản Trị Kho Vận & Cảnh Báo Tồn Kho (Inventory Tracking)
-*Theo dõi số lượng tồn kho từng mặt hàng theo thời gian thực, tự động gắn cờ cảnh báo các sản phẩm sắp hết hàng (`Kho <= 5`) và nút Nhập hàng nhanh.*
-![22_admin_inventory](docs/screenshots/22_admin_inventory.png)
-
----
-
-#### 23. Quản Trị Khuyến Mãi & Mã Giảm Giá (Coupons Management)
-*Tạo và quản lý mã coupon: Giảm giá theo %, Giảm theo số tiền, Đơn tối thiểu, Giảm tối đa, Giới hạn lượt dùng toàn sàn, Giới hạn mỗi khách hàng và Thời hạn sử dụng.*
-![23_admin_coupons](docs/screenshots/23_admin_coupons.png)
-
----
-
-#### 24. Trung Tâm Xử Lý Vé Hỗ Trợ Khách Hàng (Support Desk)
-*Bộ phận CSKH tiếp nhận các Ticket khiếu nại, phản hồi trực tiếp cho khách hàng và đóng Ticket sau khi xử lý thành công.*
-![24_admin_support_tickets](docs/screenshots/24_admin_support_tickets.png)
-
----
-
 ## 🌟 Bảng Tổng Hợp Tính Năng Hệ Thống
 
 | Phân hệ | Tính năng nổi bật | Công nghệ / Ghi chú |

@@ -72,51 +72,45 @@ Toàn bộ hình ảnh dưới đây được chụp trực tiếp từ hệ th�
 
 ---
 
-#### 10. Modal Đăng Nhập & Đăng Ký Bảo Mật Chuẩn JWT
-*Hỗ trợ đăng nhập email/mật khẩu mã hóa Bcrypt, bảo vệ khóa tài khoản khi nhập sai quá 5 lần, tích hợp đăng nhập nhanh qua Google & Facebook OAuth 2.0.*
-![10_auth_modal](docs/screenshots/10_auth_modal.png)
-
----
-
 ### 👤 PHẦN 2: TRUNG TÂM TÀI KHOẢN CÁ NHÂN (CUSTOMER ACCOUNT PORTAL)
 
-#### 11. Menu Người Dùng Trên Thanh Điều Hướng (Navbar Dropdown)
+#### 10. Menu Người Dùng Trên Thanh Điều Hướng (Navbar Dropdown)
 *Truy cập nhanh vào các phân hệ tài khoản cá nhân, xem trạng thái đăng nhập và vai trò người dùng.*
 ![11_user_dropdown_menu](docs/screenshots/11_user_dropdown_menu.png)
 
 ---
 
-#### 12. Hồ Sơ Cá Nhân (Customer Profile)
+#### 11. Hồ Sơ Cá Nhân (Customer Profile)
 *Quản lý và cập nhật thông tin cá nhân: Họ và tên, Email, Số điện thoại, Ngày sinh, Giới tính và liên kết ảnh đại diện avatar.*
 ![12_customer_profile](docs/screenshots/12_customer_profile.png)
 
 ---
 
-#### 13. Sổ Địa Chỉ Nhận Hàng (Address Book)
+#### 12. Sổ Địa Chỉ Nhận Hàng (Address Book)
 *Thêm mới, chỉnh sửa, xóa địa chỉ giao hàng và chỉ định một địa chỉ làm **Địa chỉ mặc định** để tự động điền khi thanh toán.*
 ![13_customer_address_book](docs/screenshots/13_customer_address_book.png)
 
 ---
 
-#### 14. Quản Lý Đơn Mua Theo 6 Trạng Thái (My Orders)
+#### 13. Quản Lý Đơn Mua Theo 6 Trạng Thái (My Orders)
 *Lọc đơn hàng theo từng tab: Tất cả, Chờ xác nhận, Đang xử lý, Đang giao, Đã giao, Đã hủy, Hoàn tiền. Hỗ trợ khách tự hủy đơn hợp lệ khi chưa gửi hàng.*
 ![14_customer_orders](docs/screenshots/14_customer_orders.png)
 
 ---
 
-#### 15. Đánh Giá Sản Phẩm (Reviews & Ratings)
+#### 14. Đánh Giá Sản Phẩm (Reviews & Ratings)
 *Khách hàng chỉ được đánh giá các sản phẩm thuộc đơn hàng **Đã giao thành công**. Cho phép chấm điểm 1-5 sao, nhận xét và tải ảnh phản hồi thực tế.*
 ![15_customer_reviews](docs/screenshots/15_customer_reviews.png)
 
 ---
 
-#### 16. Kho Voucher Cá Nhân (Voucher Wallet)
+#### 15. Kho Voucher Cá Nhân (Voucher Wallet)
 *Quản lý danh sách voucher cá nhân theo 3 tab: Voucher khả dụng, Đã dùng, Hết hạn. Nút 1-click sao chép mã coupon nhanh chóng.*
 ![16_customer_vouchers](docs/screenshots/16_customer_vouchers.png)
 
 ---
 
-#### 17. Trung Tâm Bảo Mật & Quản Lý Thiết Bị Đăng Nhập
+#### 16. Trung Tâm Bảo Mật & Quản Lý Thiết Bị Đăng Nhập
 *Đổi mật khẩu tài khoản bảo mật, kiểm tra danh sách thiết bị đang đăng nhập và tính năng **Đăng xuất khỏi tất cả thiết bị** vô hiệu hóa token từ xa.*
 ![17_customer_security](docs/screenshots/17_customer_security.png)
 
@@ -124,25 +118,25 @@ Toàn bộ hình ảnh dưới đây được chụp trực tiếp từ hệ th�
 
 ### ⚙️ PHẦN 3: HỆ THỐNG QUẢN TRỊ ADMIN CHUYÊN NGHIỆP (`/admin`)
 
-#### 18. Bảng Điều Khiển Tổng Quan (Admin Dashboard & Analytics)
+#### 17. Bảng Điều Khiển Tổng Quan (Admin Dashboard & Analytics)
 *Báo cáo số liệu kinh doanh: Tổng doanh thu hôm nay, doanh thu tháng, số lượng đơn hàng, người dùng mới, biểu đồ phân tích và danh sách Top sản phẩm.*
 ![18_admin_dashboard](docs/screenshots/18_admin_dashboard.png)
 
 ---
 
-#### 19. Quản Trị Danh Mục & Kho Sản Phẩm (Products Management)
+#### 18. Quản Trị Danh Mục & Kho Sản Phẩm (Products Management)
 *Giao diện bảng dữ liệu trực quan: Xem tồn kho, trạng thái bán, thêm sản phẩm mới kèm tải nhiều ảnh, quản lý các biến thể kích thước và màu sắc.*
 ![19_admin_products](docs/screenshots/19_admin_products.png)
 
 ---
 
-#### 20. Quản Lý Đơn Hàng Toàn Diện (Orders Hub)
+#### 19. Quản Lý Đơn Hàng Toàn Diện (Orders Hub)
 *Theo dõi danh sách đơn hàng toàn sàn, lọc theo trạng thái, cập nhật tiến độ giao vận, hủy đơn hoặc hoàn tiền kèm cơ chế tự động hoàn lại số lượng tồn kho và hoàn voucher.*
 ![20_admin_orders](docs/screenshots/20_admin_orders.png)
 
 ---
 
-#### 21. Modal In Hóa Đơn Điện Tử Bán Hàng (Printable Invoice with QR)
+#### 20. Modal In Hóa Đơn Điện Tử Bán Hàng (Printable Invoice with QR)
 *Mẫu hóa đơn chuyên nghiệp hiển thị đầy đủ thông tin khách hàng, chi tiết đơn giá, mã QR xác thực và nút In / Lưu PDF chuẩn thương mại.*
 ![21_admin_invoice_modal](docs/screenshots/21_admin_invoice_modal.png)
 

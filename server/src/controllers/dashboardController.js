@@ -7,7 +7,7 @@ export const getDashboardStats = async (req, res) => {
   try {
     const totalProducts = await Product.countDocuments();
     const totalUsers = await User.countDocuments({ role: 'customer' });
-    const orders = await Order.find();
+    const orders = await Order.find().select('orderStatus totalPrice createdAt').lean();
 
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -33,7 +33,7 @@ export const getDashboardStats = async (req, res) => {
     const refundedOrders = orders.filter((o) => o.orderStatus === 'Refunded').length;
 
     // Calculate total physical stock across all products
-    const allProducts = await Product.find().select('stock name category price variants images');
+    const allProducts = await Product.find().select('stock stockQuantity name category price variants images').lean();
     const totalStock = allProducts.reduce((sum, p) => sum + (p.stock || 0), 0);
     const lowStockCount = allProducts.filter((p) => (p.stock || 0) <= 5 && (p.stock || 0) > 0).length;
     const outOfStockCount = allProducts.filter((p) => (p.stock || 0) <= 0).length;
@@ -67,12 +67,14 @@ export const getDashboardStats = async (req, res) => {
     const recentOrders = await Order.find()
       .populate('user', 'name email')
       .sort({ createdAt: -1 })
-      .limit(6);
+      .limit(6)
+      .lean();
 
     // Top products
     const topProducts = await Product.find()
       .sort({ isBestSeller: -1, rating: -1, numReviews: -1 })
-      .limit(5);
+      .limit(5)
+      .lean();
 
     // Category breakdown
     const categoryStats = await Product.aggregate([
@@ -129,10 +131,10 @@ export const getUsersList = async (req, res) => {
       query.role = role;
     }
 
-    const users = await User.find(query).select('-password').sort({ createdAt: -1 });
+    const users = await User.find(query).select('-password').sort({ createdAt: -1 }).lean();
 
     // Aggregate user spending and order count
-    const orders = await Order.find({ orderStatus: { $nin: ['Cancelled', 'Refunded'] } });
+    const orders = await Order.find({ orderStatus: { $nin: ['Cancelled', 'Refunded'] } }).select('user totalPrice').lean();
     const userOrderMap = {};
 
     orders.forEach((ord) => {
@@ -149,7 +151,7 @@ export const getUsersList = async (req, res) => {
     const enrichedUsers = users.map((u) => {
       const stats = userOrderMap[u._id.toString()] || { count: 0, spent: 0 };
       return {
-        ...u.toObject(),
+        ...u,
         orderCount: stats.count,
         totalSpent: stats.spent,
       };
@@ -232,7 +234,7 @@ export const adminResetUserPassword = async (req, res) => {
  */
 export const getInventoryStats = async (req, res) => {
   try {
-    const products = await Product.find().sort({ stock: 1 });
+    const products = await Product.find().sort({ stock: 1, stockQuantity: 1 }).lean();
 
     const lowStockThreshold = 5;
     const lowStockItems = [];

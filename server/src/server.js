@@ -34,9 +34,11 @@ import {
   apiRateLimiter,
 } from './middleware/securityShield.js';
 import { sanitizeInput } from './middleware/sanitize.js';
+import { gzipCompression } from './middleware/compression.js';
 
 // 1. Security & Privacy Settings: Mask Express fingerprint & Deploy Honeypot WAF
 app.disable('x-powered-by');
+app.use(gzipCompression);
 app.use(honeypotShield);
 
 // 2. Strict CORS Configuration

@@ -228,7 +228,7 @@ export const getMyOrders = async (req, res) => {
     if (req.user.phone && req.user.phone.trim()) {
       queryConditions.push({ 'shippingAddress.phone': req.user.phone.trim() });
     }
-    const orders = await Order.find({ $or: queryConditions }).sort({ createdAt: -1 });
+    const orders = await Order.find({ $or: queryConditions }).sort({ createdAt: -1 }).lean();
     res.json({ success: true, orders });
   } catch (error) {
     console.error('getMyOrders error:', error);
@@ -248,10 +248,10 @@ export const getOrderById = async (req, res) => {
     let order;
 
     if (id.match(/^[0-9a-fA-F]{24}$/)) {
-      order = await Order.findById(id).populate('user', 'name email');
+      order = await Order.findById(id).populate('user', 'name email').lean();
     }
     if (!order) {
-      order = await Order.findOne({ orderCode: id }).populate('user', 'name email');
+      order = await Order.findOne({ orderCode: id }).populate('user', 'name email').lean();
     }
 
     if (!order) {
@@ -294,7 +294,7 @@ export const getAllOrders = async (req, res) => {
     }
 
     const sortOption = sort === 'oldest' ? { createdAt: 1 } : { createdAt: -1 };
-    const orders = await Order.find(query).populate('user', 'name email phone').sort(sortOption);
+    const orders = await Order.find(query).populate('user', 'name email phone').sort(sortOption).lean();
 
     res.json({ success: true, orders });
   } catch (error) {

@@ -97,6 +97,24 @@ const ShopStoreView = ({ onNavigateAdmin }) => {
   ];
   const sizes = ['S', 'M', 'L', 'XL', 'XXL'];
 
+  // Debounce search and price slider to prevent excessive API requests
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(searchQuery);
+  const [debouncedPriceRange, setDebouncedPriceRange] = useState(priceRange);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedPriceRange(priceRange);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [priceRange]);
+
   // Fetch products from backend API
   const fetchProducts = useCallback(async () => {
     setLoading(true);
@@ -108,14 +126,14 @@ const ShopStoreView = ({ onNavigateAdmin }) => {
       if (selectedSize) {
         params.append('size', selectedSize);
       }
-      if (priceRange) {
-        params.append('maxPrice', priceRange);
+      if (debouncedPriceRange) {
+        params.append('maxPrice', debouncedPriceRange);
       }
       if (sortBy) {
         params.append('sort', sortBy);
       }
-      if (searchQuery.trim()) {
-        params.append('keyword', searchQuery.trim());
+      if (debouncedSearchQuery.trim()) {
+        params.append('keyword', debouncedSearchQuery.trim());
       }
       params.append('limit', '30');
 
@@ -130,7 +148,7 @@ const ShopStoreView = ({ onNavigateAdmin }) => {
     } finally {
       setLoading(false);
     }
-  }, [selectedCategory, selectedSize, priceRange, sortBy, searchQuery]);
+  }, [selectedCategory, selectedSize, debouncedPriceRange, sortBy, debouncedSearchQuery]);
 
   useEffect(() => {
     fetchProducts();

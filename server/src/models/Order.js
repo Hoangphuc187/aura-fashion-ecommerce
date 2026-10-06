@@ -77,4 +77,10 @@ const orderSchema = new mongoose.Schema(
   }
 );
 
+// High-performance query indexes
+orderSchema.index({ user: 1, createdAt: -1 });
+orderSchema.index({ orderStatus: 1, createdAt: -1 });
+orderSchema.index({ 'shippingAddress.phone': 1 });
+orderSchema.index({ 'shippingAddress.email': 1 });
+
 export default mongoose.model('Order', orderSchema);

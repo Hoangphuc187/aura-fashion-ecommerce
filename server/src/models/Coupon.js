@@ -61,4 +61,8 @@ const couponSchema = new mongoose.Schema(
   }
 );
 
+// High-performance query indexes
+couponSchema.index({ code: 1, isActive: 1 });
+couponSchema.index({ isActive: 1, expiresAt: 1 });
+
 export default mongoose.model('Coupon', couponSchema);

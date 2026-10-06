@@ -11,6 +11,10 @@ import {
   Ruler,
   Send,
   Sparkles,
+  Camera,
+  CheckCircle2,
+  AlertCircle,
+  Trash2,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
@@ -32,7 +36,66 @@ export const ProductModal = ({ product: initialProduct, onClose, onOpenProduct }
   // Review form state
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
+  const [reviewImages, setReviewImages] = useState([]);
   const [submittingReview, setSubmittingReview] = useState(false);
+  const [reviewEligibility, setReviewEligibility] = useState({
+    canReview: false,
+    hasDeliveredOrder: false,
+    alreadyReviewed: false,
+    loading: false,
+  });
+
+  // Check review eligibility (Must have purchased with status 'Delivered')
+  useEffect(() => {
+    if (product?._id && user?.token) {
+      setReviewEligibility((p) => ({ ...p, loading: true }));
+      fetch(`/api/products/${product._id}/review-eligibility`, {
+        headers: { Authorization: `Bearer ${user.token}` },
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success) {
+            setReviewEligibility({
+              canReview: Boolean(data.canReview),
+              hasDeliveredOrder: Boolean(data.hasDeliveredOrder),
+              alreadyReviewed: Boolean(data.alreadyReviewed),
+              loading: false,
+            });
+          }
+        })
+        .catch(() => setReviewEligibility((p) => ({ ...p, loading: false })));
+    } else {
+      setReviewEligibility({
+        canReview: false,
+        hasDeliveredOrder: false,
+        alreadyReviewed: false,
+        loading: false,
+      });
+    }
+  }, [product?._id, user]);
+
+  const handleReviewImageUpload = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (reviewImages.length + files.length > 5) {
+      addToast('Tối đa 5 hình ảnh cho mỗi đánh giá', 'warning');
+      return;
+    }
+    files.forEach((file) => {
+      if (file.size > 5 * 1024 * 1024) {
+        addToast(`Ảnh ${file.name} vượt quá dung lượng 5MB`, 'warning');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setReviewImages((prev) => [...prev, event.target.result].slice(0, 5));
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleRemoveReviewImage = (index) => {
+    setReviewImages((prev) => prev.filter((_, i) => i !== index));
+  };
 
   // Load latest product details with populated reviews and related products
   useEffect(() => {
@@ -72,6 +135,16 @@ export const ProductModal = ({ product: initialProduct, onClose, onOpenProduct }
       setAuthModalOpen(true);
       return;
     }
+
+    if (!reviewEligibility.canReview) {
+      if (!reviewEligibility.hasDeliveredOrder) {
+        addToast('Bạn chỉ có thể đánh giá sau khi đơn hàng được giao thành công!', 'error');
+      } else if (reviewEligibility.alreadyReviewed) {
+        addToast('Bạn đã đánh giá sản phẩm này rồi!', 'info');
+      }
+      return;
+    }
+
     if (!reviewComment.trim()) {
       addToast('Vui lòng nhập nội dung nhận xét', 'error');
       return;
@@ -85,7 +158,11 @@ export const ProductModal = ({ product: initialProduct, onClose, onOpenProduct }
           'Content-Type': 'application/json',
           Authorization: `Bearer ${user.token}`,
         },
-        body: JSON.stringify({ rating: reviewRating, comment: reviewComment }),
+        body: JSON.stringify({
+          rating: reviewRating,
+          comment: reviewComment,
+          images: reviewImages,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Không thể gửi đánh giá');
@@ -97,7 +174,14 @@ export const ProductModal = ({ product: initialProduct, onClose, onOpenProduct }
         reviews: data.reviews,
       }));
       setReviewComment('');
-      addToast('Cảm ơn bạn đã gửi đánh giá sản phẩm!', 'success');
+      setReviewImages([]);
+      setReviewEligibility({
+        canReview: false,
+        hasDeliveredOrder: true,
+        alreadyReviewed: true,
+        loading: false,
+      });
+      addToast('Cảm ơn bạn đã gửi đánh giá và hình ảnh sản phẩm!', 'success');
     } catch (err) {
       addToast(err.message, 'error');
     } finally {
@@ -706,76 +790,235 @@ export const ProductModal = ({ product: initialProduct, onClose, onOpenProduct }
           {/* Tab 2: Reviews */}
           {activeTab === 'reviews' && (
             <div>
-              {/* Write Review Form */}
-              <form
-                onSubmit={handleSubmitReview}
-                style={{
-                  background: 'rgba(255, 255, 255, 0.04)',
-                  padding: '18px 22px',
-                  borderRadius: '14px',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                  marginBottom: '24px',
-                }}
-              >
-                <div style={{ fontSize: '0.94rem', fontWeight: 700, marginBottom: '10px' }}>
-                  Viết đánh giá của bạn cho sản phẩm này:
-                </div>
-
-                {/* Rating selection */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                  <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Chấm sao:</span>
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      type="button"
-                      key={star}
-                      onClick={() => setReviewRating(star)}
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        cursor: 'pointer',
-                        padding: '2px',
-                      }}
-                    >
-                      <Star
-                        size={20}
-                        fill={star <= reviewRating ? '#facc15' : 'none'}
-                        color="#facc15"
-                      />
-                    </button>
-                  ))}
-                  <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#facc15', marginLeft: '6px' }}>
-                    {reviewRating} sao
-                  </span>
-                </div>
-
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <input
-                    type="text"
-                    placeholder="Cảm nhận của bạn về chất vải, form áo, đóng gói..."
-                    value={reviewComment}
-                    onChange={(e) => setReviewComment(e.target.value)}
-                    style={{
-                      flex: 1,
-                      background: 'rgba(255, 255, 255, 0.06)',
-                      border: '1px solid rgba(255, 255, 255, 0.12)',
-                      padding: '10px 14px',
-                      borderRadius: '8px',
-                      color: '#fff',
-                      fontSize: '0.86rem',
-                      outline: 'none',
-                    }}
-                  />
+              {/* Review Permission & Input Form */}
+              {!user ? (
+                <div
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: '14px',
+                    padding: '16px 20px',
+                    marginBottom: '24px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '14px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <ShieldCheck size={20} color="#facc15" />
+                    <span style={{ fontSize: '0.86rem', color: '#cbd5e1' }}>
+                      Đăng nhập để đánh giá. <em>(Chỉ khách hàng đã nhận hàng thành công mới được gửi đánh giá).</em>
+                    </span>
+                  </div>
                   <button
-                    type="submit"
-                    disabled={submittingReview}
-                    className="btn-primary"
-                    style={{ padding: '10px 20px', borderRadius: '8px', fontSize: '0.85rem' }}
+                    type="button"
+                    onClick={() => setAuthModalOpen(true)}
+                    className="btn-secondary"
+                    style={{ padding: '6px 14px', fontSize: '0.8rem', borderRadius: '8px' }}
                   >
-                    <Send size={15} />
-                    <span>{submittingReview ? 'Đang gửi...' : 'Gửi Đánh Giá'}</span>
+                    Đăng Nhập
                   </button>
                 </div>
-              </form>
+              ) : reviewEligibility.alreadyReviewed ? (
+                <div
+                  style={{
+                    background: 'rgba(16, 185, 129, 0.08)',
+                    border: '1px solid rgba(16, 185, 129, 0.25)',
+                    borderRadius: '14px',
+                    padding: '16px 20px',
+                    marginBottom: '24px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                  }}
+                >
+                  <CheckCircle2 size={20} color="#10b981" />
+                  <div style={{ fontSize: '0.86rem', color: '#6ee7b7' }}>
+                    Bạn đã gửi đánh giá cho sản phẩm này. Cảm ơn bạn đã đóng góp phản hồi quý giá!
+                  </div>
+                </div>
+              ) : !reviewEligibility.hasDeliveredOrder ? (
+                <div
+                  style={{
+                    background: 'rgba(239, 68, 68, 0.08)',
+                    border: '1px solid rgba(239, 68, 68, 0.25)',
+                    borderRadius: '14px',
+                    padding: '16px 20px',
+                    marginBottom: '24px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                  }}
+                >
+                  <AlertCircle size={20} color="#f87171" style={{ flexShrink: 0 }} />
+                  <div style={{ fontSize: '0.85rem', color: '#fca5a5', lineHeight: 1.5 }}>
+                    Chỉ khách hàng <strong>đã mua sản phẩm</strong> và <strong>đơn hàng đã được giao thành công</strong> mới có thể gửi đánh giá. Quy định này giúp bảo đảm tính chân thực và minh bạch của hệ thống.
+                  </div>
+                </div>
+              ) : (
+                /* Eligible Review Form with Photo Upload */
+                <form
+                  onSubmit={handleSubmitReview}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    padding: '18px 22px',
+                    borderRadius: '14px',
+                    border: '1px solid rgba(250, 204, 21, 0.25)',
+                    marginBottom: '24px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                    <div style={{ fontSize: '0.94rem', fontWeight: 700, color: '#facc15' }}>
+                      ✓ Đã xác thực người mua — Viết đánh giá sản phẩm:
+                    </div>
+                    <span style={{ fontSize: '0.72rem', background: 'rgba(16, 185, 129, 0.2)', color: '#34d399', padding: '2px 8px', borderRadius: '4px', fontWeight: 700 }}>
+                      ĐÃ MUA HÀNG
+                    </span>
+                  </div>
+
+                  {/* Rating selection */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                    <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Chấm sao:</span>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        type="button"
+                        key={star}
+                        onClick={() => setReviewRating(star)}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: '2px',
+                        }}
+                      >
+                        <Star
+                          size={22}
+                          fill={star <= reviewRating ? '#facc15' : 'none'}
+                          color="#facc15"
+                        />
+                      </button>
+                    ))}
+                    <span style={{ fontSize: '0.84rem', fontWeight: 700, color: '#facc15', marginLeft: '6px' }}>
+                      {reviewRating} sao
+                    </span>
+                  </div>
+
+                  {/* Comment */}
+                  <div style={{ marginBottom: '12px' }}>
+                    <textarea
+                      rows={3}
+                      placeholder="Cảm nhận chi tiết của bạn về chất vải, form áo, đường may, tốc độ giao hàng..."
+                      value={reviewComment}
+                      onChange={(e) => setReviewComment(e.target.value)}
+                      style={{
+                        width: '100%',
+                        background: 'rgba(255, 255, 255, 0.06)',
+                        border: '1px solid rgba(255, 255, 255, 0.12)',
+                        padding: '12px 14px',
+                        borderRadius: '8px',
+                        color: '#fff',
+                        fontSize: '0.88rem',
+                        outline: 'none',
+                        resize: 'vertical',
+                      }}
+                    />
+                  </div>
+
+                  {/* Photo Upload Zone */}
+                  <div style={{ marginBottom: '14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                      <label
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          background: 'rgba(255, 255, 255, 0.08)',
+                          border: '1px solid rgba(255, 255, 255, 0.15)',
+                          padding: '6px 12px',
+                          borderRadius: '8px',
+                          color: '#e2e8f0',
+                          fontSize: '0.8rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                        }}
+                      >
+                        <Camera size={15} color="#facc15" />
+                        <span>Thêm ảnh thực tế ({reviewImages.length}/5)</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={handleReviewImageUpload}
+                          style={{ display: 'none' }}
+                        />
+                      </label>
+                      <span style={{ fontSize: '0.74rem', color: 'var(--text-dim)' }}>
+                        (Tối đa 5 ảnh chụp thực tế)
+                      </span>
+                    </div>
+
+                    {/* Image Previews */}
+                    {reviewImages.length > 0 && (
+                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                        {reviewImages.map((img, idx) => (
+                          <div
+                            key={idx}
+                            style={{
+                              position: 'relative',
+                              width: '64px',
+                              height: '64px',
+                              borderRadius: '8px',
+                              overflow: 'hidden',
+                              border: '1px solid rgba(255, 255, 255, 0.2)',
+                            }}
+                          >
+                            <img
+                              src={img}
+                              alt=""
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveReviewImage(idx)}
+                              style={{
+                                position: 'absolute',
+                                top: '2px',
+                                right: '2px',
+                                background: 'rgba(0,0,0,0.7)',
+                                border: 'none',
+                                color: '#f87171',
+                                width: '18px',
+                                height: '18px',
+                                borderRadius: '50%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button
+                      type="submit"
+                      disabled={submittingReview}
+                      className="btn-primary"
+                      style={{ padding: '10px 22px', borderRadius: '8px', fontSize: '0.88rem' }}
+                    >
+                      <Send size={15} />
+                      <span>{submittingReview ? 'Đang gửi...' : 'Đăng Đánh Giá'}</span>
+                    </button>
+                  </div>
+                </form>
+              )}
 
               {/* Review list */}
               {product.reviews && product.reviews.length > 0 ? (
@@ -833,9 +1076,34 @@ export const ProductModal = ({ product: initialProduct, onClose, onOpenProduct }
                           ))}
                         </div>
                       </div>
-                      <p style={{ fontSize: '0.86rem', color: '#cbd5e1', lineHeight: 1.5 }}>
+                      <p style={{ fontSize: '0.86rem', color: '#cbd5e1', lineHeight: 1.5, marginBottom: '8px' }}>
                         {rev.comment}
                       </p>
+
+                      {/* Display Customer Uploaded Images */}
+                      {rev.images && rev.images.length > 0 && (
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '8px' }}>
+                          {rev.images.map((imgUrl, imgIdx) => (
+                            <img
+                              key={imgIdx}
+                              src={imgUrl}
+                              alt={`Ảnh đánh giá ${imgIdx + 1}`}
+                              style={{
+                                width: '70px',
+                                height: '70px',
+                                borderRadius: '8px',
+                                objectFit: 'cover',
+                                border: '1px solid rgba(255, 255, 255, 0.15)',
+                                cursor: 'pointer',
+                                transition: 'transform 0.15s',
+                              }}
+                              onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.05)')}
+                              onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                              onClick={() => window.open(imgUrl, '_blank')}
+                            />
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

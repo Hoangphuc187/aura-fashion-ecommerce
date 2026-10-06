@@ -1,14 +1,20 @@
 import React, { useRef } from 'react';
 import { ArrowUpRight, ChevronLeft, ChevronRight, Sparkles, Flame, Zap } from 'lucide-react';
 
-export const FeaturedCategories = ({ onSelectCategory, selectedCategory }) => {
+export const FeaturedCategories = ({ onSelectCategory, selectedCategory, products = [] }) => {
   const scrollRef = useRef(null);
+
+  const getCategoryCount = (categoryName) => {
+    if (!products || products.length === 0) return 'Khám phá ngay';
+    const matchCount = products.filter((p) => p.category === categoryName).length;
+    return matchCount > 0 ? `${matchCount} mẫu thiết kế` : 'Mẫu mới sắp về';
+  };
 
   const categoryCards = [
     {
       name: 'Áo Khoác & Hoodie',
       category: 'Áo khoác',
-      count: '18+ mẫu',
+      count: getCategoryCount('Áo khoác'),
       badge: 'TRENDING',
       badgeIcon: Flame,
       badgeColor: '#ff5722',
@@ -19,7 +25,7 @@ export const FeaturedCategories = ({ onSelectCategory, selectedCategory }) => {
     {
       name: 'Áo Thun Heavyweight',
       category: 'Áo thun',
-      count: '24+ mẫu',
+      count: getCategoryCount('Áo thun'),
       badge: 'BESTSELLER',
       badgeIcon: Zap,
       badgeColor: '#facc15',
@@ -30,7 +36,7 @@ export const FeaturedCategories = ({ onSelectCategory, selectedCategory }) => {
     {
       name: 'Quần Cargo & Denim',
       category: 'Quần & Shorts',
-      count: '16+ mẫu',
+      count: getCategoryCount('Quần & Shorts'),
       badge: 'HOT DROP',
       badgeIcon: Sparkles,
       badgeColor: '#10b981',
@@ -41,7 +47,7 @@ export const FeaturedCategories = ({ onSelectCategory, selectedCategory }) => {
     {
       name: 'Sơ Mi Cổ Cuba',
       category: 'Sơ mi',
-      count: '12+ mẫu',
+      count: getCategoryCount('Sơ mi'),
       badge: 'SUMMER VIBE',
       badgeIcon: Sparkles,
       badgeColor: '#38bdf8',
@@ -52,7 +58,7 @@ export const FeaturedCategories = ({ onSelectCategory, selectedCategory }) => {
     {
       name: 'Phụ Kiện Đường Phố',
       category: 'Phụ kiện',
-      count: '15+ mẫu',
+      count: getCategoryCount('Phụ kiện'),
       badge: 'ESSENTIALS',
       badgeIcon: Zap,
       badgeColor: '#e879f9',

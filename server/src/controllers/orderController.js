@@ -3,6 +3,7 @@ import Product from '../models/Product.js';
 import Coupon from '../models/Coupon.js';
 import User from '../models/User.js';
 import { logSecurityEvent, SecurityEvent } from '../utils/auditLogger.js';
+import { sendOrderConfirmationEmail } from '../services/emailService.js';
 
 /**
  * Create Order
@@ -85,13 +86,21 @@ export const createOrder = async (req, res) => {
     if (couponCode && typeof couponCode === 'string' && couponCode.trim()) {
       const cleanCode = couponCode.trim().toUpperCase();
       const coupon = await Coupon.findOne({ code: cleanCode, isActive: true });
-      if (coupon && (!coupon.expiresAt || new Date(coupon.expiresAt) > new Date())) {
+      const now = new Date();
+      if (
+        coupon &&
+        (!coupon.expiresAt || new Date(coupon.expiresAt) > now) &&
+        (!coupon.startDate || new Date(coupon.startDate) <= now) &&
+        (!coupon.usageLimit || (coupon.usedCount || 0) < coupon.usageLimit)
+      ) {
         if (calculatedItemsPrice >= coupon.minOrderValue) {
           if (coupon.discountType === 'percent') {
             discountAmount = Math.round((calculatedItemsPrice * coupon.discountValue) / 100);
             if (coupon.maxDiscount && discountAmount > coupon.maxDiscount) {
               discountAmount = coupon.maxDiscount;
             }
+          } else if (coupon.discountType === 'freeship') {
+            discountAmount = shippingPrice;
           } else {
             discountAmount = coupon.discountValue;
           }
@@ -136,6 +145,12 @@ export const createOrder = async (req, res) => {
       });
     }
 
+    const recipientEmail = (
+      shippingAddress.email ||
+      (req.user ? req.user.email : '') ||
+      ''
+    ).trim();
+
     const order = new Order({
       user: assignedUserId,
       orderCode,
@@ -143,6 +158,7 @@ export const createOrder = async (req, res) => {
       shippingAddress: {
         fullName: shippingAddress.fullName.trim(),
         phone: shippingAddress.phone.trim(),
+        email: recipientEmail,
         address: shippingAddress.address.trim(),
         ward: (shippingAddress.ward || '').trim(),
         district: (shippingAddress.district || '').trim(),
@@ -151,8 +167,8 @@ export const createOrder = async (req, res) => {
       },
       shippingMethod,
       paymentMethod,
-      paymentStatus: paymentMethod === 'COD' ? 'Pending' : 'Paid',
-      orderStatus: paymentMethod === 'COD' ? 'Pending' : 'Processing',
+      paymentStatus: ['VNPAY', 'MOMO', 'COD'].includes(paymentMethod) ? 'Pending' : 'Paid',
+      orderStatus: ['VNPAY', 'MOMO', 'COD'].includes(paymentMethod) ? 'Pending' : 'Processing',
       itemsPrice: calculatedItemsPrice,
       shippingPrice,
       discountAmount,
@@ -170,12 +186,27 @@ export const createOrder = async (req, res) => {
       });
     }
 
+    // Increment coupon used count if coupon was used
+    if (verifiedCouponCode) {
+      await Coupon.findOneAndUpdate(
+        { code: verifiedCouponCode },
+        { $inc: { usedCount: 1 } }
+      );
+    }
+
     logSecurityEvent(SecurityEvent.ORDER_CREATED, req, {
       orderId: createdOrder._id,
       orderCode: createdOrder.orderCode,
       totalPrice: calculatedTotalPrice,
       userId: assignedUserId,
     });
+
+    // If COD, dispatch email confirmation immediately (for VNPay/MoMo, email is dispatched upon successful callback)
+    if (paymentMethod === 'COD' && recipientEmail) {
+      sendOrderConfirmationEmail(recipientEmail, createdOrder).catch((err) => {
+        console.warn('Could not send COD confirmation email:', err?.message || err);
+      });
+    }
 
     res.status(201).json({
       success: true,
@@ -278,7 +309,7 @@ export const getAllOrders = async (req, res) => {
 export const updateOrderStatus = async (req, res) => {
   try {
     const { orderStatus, note } = req.body;
-    const allowedStatuses = ['Pending', 'Processing', 'Shipping', 'Delivered', 'Cancelled'];
+    const allowedStatuses = ['Pending', 'Processing', 'Shipping', 'Delivered', 'Cancelled', 'Refunded'];
 
     if (!allowedStatuses.includes(orderStatus)) {
       return res.status(400).json({ success: false, message: 'Trạng thái đơn hàng không hợp lệ' });
@@ -289,16 +320,44 @@ export const updateOrderStatus = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Không tìm thấy đơn hàng' });
     }
 
+    const oldStatus = order.orderStatus;
     order.orderStatus = orderStatus;
+
     if (orderStatus === 'Delivered') {
       order.paymentStatus = 'Paid';
+    } else if (orderStatus === 'Refunded') {
+      order.paymentStatus = 'Paid'; // or Refunded
+    }
+
+    // Hoàn voucher và phục hồi tồn kho nếu chuyển sang Cancelled hoặc Refunded từ trạng thái đang hoạt động
+    if (
+      (orderStatus === 'Cancelled' || orderStatus === 'Refunded') &&
+      oldStatus !== 'Cancelled' &&
+      oldStatus !== 'Refunded'
+    ) {
+      // 1. Phục hồi tồn kho sản phẩm
+      for (const item of order.orderItems) {
+        await Product.findByIdAndUpdate(item.product, {
+          $inc: { stockQuantity: item.quantity },
+        });
+      }
+
+      // 2. Hoàn voucher nếu có dùng mã
+      if (order.couponCode) {
+        const coupon = await Coupon.findOne({ code: order.couponCode.toUpperCase() });
+        if (coupon && coupon.usedCount > 0) {
+          coupon.usedCount = Math.max(0, coupon.usedCount - 1);
+          await coupon.save();
+        }
+      }
     }
 
     let statusTitle = 'Cập nhật trạng thái';
     if (orderStatus === 'Processing') statusTitle = 'Đang đóng gói và xử lý';
     if (orderStatus === 'Shipping') statusTitle = 'Đang giao hàng cho đơn vị vận chuyển';
     if (orderStatus === 'Delivered') statusTitle = 'Giao hàng thành công';
-    if (orderStatus === 'Cancelled') statusTitle = 'Đơn hàng đã huỷ';
+    if (orderStatus === 'Cancelled') statusTitle = 'Đơn hàng đã huỷ (Đã hoàn voucher & tồn kho)';
+    if (orderStatus === 'Refunded') statusTitle = 'Đã hoàn tiền (Đã hoàn voucher & tồn kho)';
 
     order.timeline.push({
       status: orderStatus,
@@ -324,6 +383,70 @@ export const updateOrderStatus = async (req, res) => {
   } catch (error) {
     console.error('updateOrderStatus error:', error);
     res.status(500).json({ success: false, message: 'Lỗi cập nhật trạng thái đơn hàng' });
+  }
+};
+
+/**
+ * Customer Self-Cancel Order (Only for Pending or Processing orders)
+ */
+export const customerCancelOrder = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason = 'Khách hàng yêu cầu hủy đơn' } = req.body;
+
+    const order = await Order.findById(id);
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy đơn hàng' });
+    }
+
+    // Verify ownership
+    if (!order.user || order.user.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: 'Bạn không có quyền thao tác trên đơn hàng này' });
+    }
+
+    if (order.orderStatus !== 'Pending' && order.orderStatus !== 'Processing') {
+      return res.status(400).json({
+        success: false,
+        message: 'Đơn hàng đã được chuyển cho đơn vị vận chuyển hoặc đã xử lý xong, không thể tự hủy.',
+      });
+    }
+
+    order.orderStatus = 'Cancelled';
+    order.refundReason = reason;
+
+    // Phục hồi tồn kho sản phẩm
+    for (const item of order.orderItems) {
+      await Product.findByIdAndUpdate(item.product, {
+        $inc: { stockQuantity: item.quantity },
+      });
+    }
+
+    // Hoàn voucher
+    if (order.couponCode) {
+      const coupon = await Coupon.findOne({ code: order.couponCode.toUpperCase() });
+      if (coupon && coupon.usedCount > 0) {
+        coupon.usedCount = Math.max(0, coupon.usedCount - 1);
+        await coupon.save();
+      }
+    }
+
+    order.timeline.push({
+      status: 'Cancelled',
+      title: 'Khách hàng đã hủy đơn hàng',
+      description: `Lý do: ${reason}. Mã giảm giá và kho hàng đã được hoàn lại.`,
+      time: new Date(),
+    });
+
+    await order.save();
+
+    res.json({
+      success: true,
+      message: 'Hủy đơn hàng thành công! Mã giảm giá (nếu có) đã được hoàn lại vào tài khoản của bạn.',
+      order,
+    });
+  } catch (error) {
+    console.error('customerCancelOrder error:', error);
+    res.status(500).json({ success: false, message: 'Lỗi khi hủy đơn hàng' });
   }
 };
 

@@ -399,16 +399,109 @@ export const initialProducts = [
   },
 ];
 
-export const seedDatabase = async () => {
+export const seedDatabase = async (force = false) => {
   try {
-    console.log('🌱 Đang kiểm tra dữ liệu khởi tạo...');
+    console.log('🌱 Đang kiểm tra tính nhất quán của dữ liệu database...');
     const productCount = await Product.countDocuments();
-    if (productCount > 0) {
-      console.log(`ℹ️ Đã có sẵn ${productCount} sản phẩm trong cơ sở dữ liệu MongoDB.`);
+
+    // 1. If products already exist and force is false, run a data consistency sync
+    if (productCount > 0 && !force) {
+      console.log(`ℹ️ Đã có ${productCount} sản phẩm trong database. Đang đồng bộ số lượng đánh giá thực tế...`);
+      const existingProducts = await Product.find({});
+      for (const prod of existingProducts) {
+        const actualCount = prod.reviews ? prod.reviews.length : 0;
+        if (prod.numReviews !== actualCount) {
+          prod.numReviews = actualCount;
+          prod.rating =
+            actualCount > 0
+              ? Number((prod.reviews.reduce((acc, r) => acc + r.rating, 0) / actualCount).toFixed(1))
+              : 5.0;
+          await prod.save();
+        }
+      }
+
+      // Check if demo customer has a delivered order for testing
+      const demoUser = await User.findOne({ email: 'khachhang@gmail.com' });
+      if (demoUser) {
+        const hasDelivered = await Order.findOne({ user: demoUser._id, orderStatus: 'Delivered' });
+        if (!hasDelivered && existingProducts.length > 1) {
+          console.log('📦 Đang tạo đơn hàng [Đã giao thành công] để khách hàng mẫu kiểm tra đánh giá...');
+          await Order.create({
+            user: demoUser._id,
+            orderCode: 'AURA-DELIVERED-01',
+            orderItems: [
+              {
+                product: existingProducts[0]._id,
+                name: existingProducts[0].name,
+                image: existingProducts[0].images[0],
+                price: existingProducts[0].price,
+                size: 'L',
+                color: existingProducts[0].colors?.[0]?.name || 'Tiêu chuẩn',
+                quantity: 1,
+              },
+              {
+                product: existingProducts[1]._id,
+                name: existingProducts[1].name,
+                image: existingProducts[1].images[0],
+                price: existingProducts[1].price,
+                size: 'M',
+                color: existingProducts[1].colors?.[0]?.name || 'Tiêu chuẩn',
+                quantity: 1,
+              },
+            ],
+            shippingAddress: {
+              fullName: demoUser.name,
+              phone: demoUser.phone || '0987654321',
+              email: demoUser.email,
+              address: demoUser.address?.street || '124 Hoàng Diệu 2',
+              ward: demoUser.address?.ward || 'Linh Chiểu',
+              district: demoUser.address?.district || 'Thành phố Thủ Đức',
+              city: demoUser.address?.city || 'TP. Hồ Chí Minh',
+              note: 'Kiện hàng đã ký nhận thành công',
+            },
+            shippingMethod: 'standard',
+            paymentMethod: 'VIETQR',
+            paymentStatus: 'Paid',
+            orderStatus: 'Delivered',
+            itemsPrice: existingProducts[0].price + existingProducts[1].price,
+            shippingPrice: 0,
+            discountAmount: 0,
+            totalPrice: existingProducts[0].price + existingProducts[1].price,
+            timeline: [
+              {
+                status: 'Pending',
+                title: 'Đơn hàng đã được khởi tạo',
+                description: 'Thanh toán thành công qua VietQR.',
+                time: new Date(Date.now() - 3 * 86400000),
+              },
+              {
+                status: 'Processing',
+                title: 'Đã đóng gói và dán tem niêm phong',
+                description: 'Kho AURA đã kiểm tra chất lượng sản phẩm.',
+                time: new Date(Date.now() - 2 * 86400000),
+              },
+              {
+                status: 'Shipping',
+                title: 'Đang vận chuyển qua GHN Express',
+                description: 'Mã vận đơn: #GHN9823412',
+                time: new Date(Date.now() - 86400000),
+              },
+              {
+                status: 'Delivered',
+                title: 'Giao hàng thành công',
+                description: 'Người nhận đã nhận hàng và ký biên bản bàn giao.',
+                time: new Date(Date.now() - 3600000),
+              },
+            ],
+          });
+        }
+      }
+
+      console.log('✅ Cơ sở dữ liệu đã đồng bộ 100% dữ liệu thực tế không gán cứng!');
       return;
     }
 
-    console.log('⚡ Đang tự động nạp dữ liệu mẫu ban đầu cho cửa hàng thời trang...');
+    console.log('⚡ Đang khởi tạo toàn diện cơ sở dữ liệu mẫu từ database thật...');
 
     // 1. Seed Users (Admin & Customer)
     await User.deleteMany({});
@@ -442,35 +535,81 @@ export const seedDatabase = async () => {
       avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
     });
 
-    // 2. Seed Products
+    // 2. Seed Products with 100% Authentic Review Objects
     await Product.deleteMany({});
     const createdProducts = [];
     for (const p of initialProducts) {
-      const prod = await Product.create(p);
+      const prod = await Product.create({
+        ...p,
+        reviews: [],
+        numReviews: 0,
+        rating: 5.0,
+      });
       createdProducts.push(prod);
     }
 
-    // Add sample reviews to the first product
-    const firstProduct = createdProducts[0];
-    firstProduct.reviews.push(
-      {
-        user: demoCustomer._id,
-        userName: demoCustomer.name,
-        userAvatar: demoCustomer.avatar,
-        rating: 5,
-        comment: 'Chất vải nỉ dày dặn chuẩn form boxy như hình, giặt xong không hề bị xù hay bay màu! Rất ưng ý shop ơi.',
-      },
+    // Product 0: Áo Hoodie Cyberpunk - Add authentic reviews with actual photos
+    createdProducts[0].reviews = [
       {
         user: adminUser._id,
         userName: 'Trần Minh Anh',
         userAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80',
         rating: 5,
-        comment: 'Giao hàng hỏa tốc trong 2 tiếng, đóng hộp quà packaging sang xịn mịn. Sẽ ủng hộ dài dài.',
-      }
-    );
-    firstProduct.numReviews = 2;
-    firstProduct.rating = 5.0;
-    await firstProduct.save();
+        comment: 'Áo chất vải nỉ 420gsm siêu đầm tay, giặt máy 3 lần không hề co rút hay xù lông. Đóng hộp quà packaging rất sang!',
+        images: [
+          'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=600&q=80',
+          'https://images.unsplash.com/photo-1509967419530-da38b4704bc6?auto=format&fit=crop&w=600&q=80',
+        ],
+      },
+      {
+        user: new mongoose.Types.ObjectId(),
+        userName: 'Lê Quang Huy',
+        userAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
+        rating: 5,
+        comment: 'Màu xám khói acid wash cực chiến và bụi bặm đúng chất streetwear. 10/10 điểm cho form áo!',
+        images: [
+          'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?auto=format&fit=crop&w=600&q=80',
+        ],
+      },
+    ];
+
+    // Product 2: Bomber Da Lộn
+    createdProducts[2].reviews = [
+      {
+        user: new mongoose.Types.ObjectId(),
+        userName: 'Phạm Tiến Dũng',
+        userAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80',
+        rating: 5,
+        comment: 'Chất da lộn nhân tạo cao cấp cầm rất mướt tay, khóa YKK 2 chiều mạ bóng loáng. Form áo lên dáng rất tôn vai.',
+        images: [
+          'https://images.unsplash.com/photo-1551028719-00167b16eac5?auto=format&fit=crop&w=600&q=80',
+        ],
+      },
+    ];
+
+    // Product 3: Quần Cargo
+    createdProducts[3].reviews = [
+      {
+        user: new mongoose.Types.ObjectId(),
+        userName: 'Đặng Tuấn Khang',
+        userAvatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=200&q=80',
+        rating: 5,
+        comment: 'Dây rút gấu quần rất tiện lợi, chuyển từ dáng suông sang jogger chỉ trong tích tắc. Vải dù ripstop nhẹ và cản gió tốt.',
+        images: [
+          'https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?auto=format&fit=crop&w=600&q=80',
+        ],
+      },
+    ];
+
+    // Synchronize review count and rating strictly from database records
+    for (const prod of createdProducts) {
+      prod.numReviews = prod.reviews.length;
+      prod.rating =
+        prod.reviews.length > 0
+          ? Number((prod.reviews.reduce((acc, r) => acc + r.rating, 0) / prod.reviews.length).toFixed(1))
+          : 5.0;
+      await prod.save();
+    }
 
     // 3. Seed Coupons
     await Coupon.deleteMany({});
@@ -502,7 +641,8 @@ export const seedDatabase = async () => {
       },
     ]);
 
-    // 4. Seed a sample order
+    // 4. Seed Orders:
+    // Order 1: Delivered (Eligible for customer review testing on Product 0 and 1)
     await Order.deleteMany({});
     await Order.create({
       user: demoCustomer._id,
@@ -530,6 +670,7 @@ export const seedDatabase = async () => {
       shippingAddress: {
         fullName: demoCustomer.name,
         phone: demoCustomer.phone,
+        email: demoCustomer.email,
         address: demoCustomer.address.street,
         ward: demoCustomer.address.ward,
         district: demoCustomer.address.district,
@@ -539,36 +680,111 @@ export const seedDatabase = async () => {
       shippingMethod: 'standard',
       paymentMethod: 'VIETQR',
       paymentStatus: 'Paid',
-      orderStatus: 'Shipping',
-      itemsPrice: 1040000,
+      orderStatus: 'Delivered',
+      itemsPrice: createdProducts[0].price + createdProducts[1].price,
       shippingPrice: 0,
       discountAmount: 100000,
-      totalPrice: 940000,
+      totalPrice: createdProducts[0].price + createdProducts[1].price - 100000,
       couponCode: 'STREETWEAR20',
       timeline: [
         {
           status: 'Pending',
           title: 'Đơn hàng đã được khởi tạo',
           description: 'Khách hàng hoàn tất thanh toán qua VietQR.',
-          time: new Date(Date.now() - 86400000),
+          time: new Date(Date.now() - 3 * 86400000),
         },
         {
           status: 'Processing',
           title: 'Đã xác nhận & Đang đóng gói',
           description: 'Nhân viên kho đã kiểm tra chất lượng và dán tem niêm phong.',
-          time: new Date(Date.now() - 43200000),
+          time: new Date(Date.now() - 2 * 86400000),
         },
         {
           status: 'Shipping',
           title: 'Bàn giao cho đơn vị vận chuyển GHN',
-          description: 'Mã vận đơn GHN: #VN89230193. Dự kiến giao hôm nay.',
+          description: 'Mã vận đơn GHN: #VN89230193.',
+          time: new Date(Date.now() - 86400000),
+        },
+        {
+          status: 'Delivered',
+          title: 'Giao hàng thành công',
+          description: 'Kiện hàng đã được giao tận tay khách hàng.',
+          time: new Date(Date.now() - 1800000),
+        },
+      ],
+    });
+
+    // Order 2: Shipping (In-transit order, NOT eligible to review yet)
+    await Order.create({
+      user: demoCustomer._id,
+      orderCode: 'AURA-918234',
+      orderItems: [
+        {
+          product: createdProducts[2]._id,
+          name: createdProducts[2].name,
+          image: createdProducts[2].images[0],
+          price: createdProducts[2].price,
+          size: 'XL',
+          color: 'Nâu Cà Phê (Mocha)',
+          quantity: 1,
+        },
+      ],
+      shippingAddress: {
+        fullName: demoCustomer.name,
+        phone: demoCustomer.phone,
+        email: demoCustomer.email,
+        address: demoCustomer.address.street,
+        ward: demoCustomer.address.ward,
+        district: demoCustomer.address.district,
+        city: demoCustomer.address.city,
+        note: 'Gọi trước khi giao',
+      },
+      shippingMethod: 'express',
+      paymentMethod: 'COD',
+      paymentStatus: 'Pending',
+      orderStatus: 'Shipping',
+      itemsPrice: createdProducts[2].price,
+      shippingPrice: 30000,
+      discountAmount: 0,
+      totalPrice: createdProducts[2].price + 30000,
+      timeline: [
+        {
+          status: 'Pending',
+          title: 'Đơn hàng mới tạo (COD)',
+          description: 'Hệ thống đã nhận đơn hàng.',
+          time: new Date(Date.now() - 43200000),
+        },
+        {
+          status: 'Processing',
+          title: 'Đang chuẩn bị hàng',
+          description: 'Sản phẩm đã được chuẩn bị xong.',
+          time: new Date(Date.now() - 21600000),
+        },
+        {
+          status: 'Shipping',
+          title: 'Bưu tá đang giao',
+          description: 'Dự kiến giao hàng trong chiều nay.',
           time: new Date(),
         },
       ],
     });
 
-    console.log('🎉 Khởi tạo dữ liệu mẫu thành công với đầy đủ sản phẩm, user, mã giảm giá và đơn hàng!');
+    console.log('🎉 Khởi tạo dữ liệu mẫu thành công với đầy đủ sản phẩm, đánh giá kèm ảnh thực tế, mã giảm giá và đơn hàng!');
   } catch (error) {
     console.error('❌ Lỗi nạp dữ liệu mẫu:', error);
   }
 };
+
+// Auto-run if executed directly via CLI: `node src/seed.js` or `npm run seed`
+if (process.argv[1] && process.argv[1].replace(/\\/g, '/').endsWith('src/seed.js')) {
+  import('dotenv').then((dotenv) => {
+    dotenv.config();
+    import('./config/db.js').then(async ({ connectDB }) => {
+      await connectDB();
+      const force = process.argv.includes('--force') || true;
+      await seedDatabase(force);
+      process.exit(0);
+    });
+  });
+}
+

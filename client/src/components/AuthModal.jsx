@@ -22,6 +22,10 @@ export const AuthModal = () => {
   const [googleEmail, setGoogleEmail] = useState('demo.customer@gmail.com');
   const [googleName, setGoogleName] = useState('Demo Customer');
 
+  const [facebookPromptOpen, setFacebookPromptOpen] = useState(false);
+  const [facebookEmail, setFacebookEmail] = useState('khachhang.fb@gmail.com');
+  const [facebookName, setFacebookName] = useState('Nguyễn Văn Phúc (Facebook)');
+
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
@@ -66,18 +70,23 @@ export const AuthModal = () => {
     }
   };
 
-  // Handle GitHub OAuth 2.0 Sign In
-  const handleGithubOAuthLogin = async () => {
+  // Handle Facebook OAuth 2.0 Sign In
+  const handleFacebookOAuthLogin = async (customEmail, customName) => {
     setLoading(true);
     try {
-      const githubId = 'github_' + Math.floor(10000000 + Math.random() * 90000000);
+      const email = customEmail || facebookEmail;
+      const name = customName || facebookName;
+      const facebookId = 'fb_' + Math.floor(1000000000 + Math.random() * 9000000000);
+      const avatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}&backgroundColor=1877f2`;
+
       await loginWithOAuth({
-        provider: 'github',
-        providerId: githubId,
-        email: 'developer.hoangphuc@github.com',
-        name: 'Hoàng Phúc (GitHub Dev)',
-        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
+        provider: 'facebook',
+        providerId: facebookId,
+        email,
+        name,
+        avatar,
       });
+      setFacebookPromptOpen(false);
     } catch {
       // handled in context
     } finally {
@@ -253,10 +262,10 @@ export const AuthModal = () => {
             <span>Đăng nhập với Google</span>
           </button>
 
-          {/* GitHub Sign In */}
+          {/* Facebook Sign In */}
           <button
             type="button"
-            onClick={handleGithubOAuthLogin}
+            onClick={() => setFacebookPromptOpen(true)}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -264,22 +273,23 @@ export const AuthModal = () => {
               gap: '12px',
               padding: '11px 18px',
               borderRadius: '12px',
-              background: 'rgba(255, 255, 255, 0.08)',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
+              background: '#1877F2',
+              border: '1px solid #1877F2',
               color: '#fff',
               fontWeight: 600,
               fontSize: '0.88rem',
               cursor: 'pointer',
               transition: 'all 0.2s',
+              boxShadow: '0 4px 15px rgba(24, 119, 242, 0.35)',
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.14)')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
+            onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-2px)')}
+            onMouseLeave={(e) => (e.currentTarget.style.transform = 'none')}
           >
-            {/* GitHub SVG */}
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+            {/* Facebook Official SVG */}
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="#ffffff">
+              <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
             </svg>
-            <span>Đăng nhập với GitHub</span>
+            <span>Đăng nhập với Facebook</span>
           </button>
         </div>
 
@@ -963,6 +973,150 @@ export const AuthModal = () => {
                 }}
               >
                 {loading ? 'Đang đăng nhập...' : 'Đăng Nhập'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Facebook OAuth Selection Prompt Modal */}
+      {facebookPromptOpen && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setFacebookPromptOpen(false)}
+          style={{ zIndex: 1200, background: 'rgba(0,0,0,0.65)' }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#ffffff',
+              color: '#1c1e21',
+              borderRadius: '16px',
+              maxWidth: '400px',
+              width: '100%',
+              padding: '24px',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
+              animation: 'fadeIn 0.2s ease-out',
+            }}
+          >
+            {/* Facebook Header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="#1877F2">
+                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+              </svg>
+              <div>
+                <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#1877F2' }}>Đăng nhập với Facebook</div>
+                <div style={{ fontSize: '0.78rem', color: '#65676b' }}>Ủy quyền đăng nhập nhanh vào AURA STUDIO</div>
+              </div>
+            </div>
+
+            <div style={{ borderTop: '1px solid #ced0d4', margin: '14px 0' }} />
+
+            {/* Account List */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '18px' }}>
+              <div
+                onClick={() => handleFacebookOAuthLogin('khachhang.fb@gmail.com', 'Nguyễn Văn Phúc (Facebook)')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '10px 12px',
+                  borderRadius: '10px',
+                  border: '1px solid #dadce0',
+                  cursor: 'pointer',
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f0f2f5')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#fff')}
+              >
+                <img
+                  src="https://api.dicebear.com/7.x/initials/svg?seed=FacebookUser&backgroundColor=1877F2"
+                  alt=""
+                  style={{ width: '38px', height: '38px', borderRadius: '50%' }}
+                />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.88rem', color: '#1c1e21' }}>
+                    Nguyễn Văn Phúc (Facebook)
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: '#65676b' }}>
+                    khachhang.fb@gmail.com
+                  </div>
+                </div>
+                <ArrowRight size={16} color="#1877F2" />
+              </div>
+            </div>
+
+            {/* Custom Facebook Account input */}
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#65676b', marginBottom: '4px' }}>
+                Hoặc nhập email/tên Facebook khác:
+              </label>
+              <input
+                type="text"
+                placeholder="Tên hoặc email Facebook"
+                value={facebookEmail}
+                onChange={(e) => setFacebookEmail(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '9px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid #ced0d4',
+                  fontSize: '0.86rem',
+                  outline: 'none',
+                  color: '#1c1e21',
+                  marginBottom: '8px',
+                }}
+              />
+              <input
+                type="text"
+                placeholder="Họ và tên hiển thị"
+                value={facebookName}
+                onChange={(e) => setFacebookName(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '9px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid #ced0d4',
+                  fontSize: '0.86rem',
+                  outline: 'none',
+                  color: '#1c1e21',
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => setFacebookPromptOpen(false)}
+                style={{
+                  padding: '8px 16px',
+                  border: 'none',
+                  background: 'transparent',
+                  color: '#65676b',
+                  fontSize: '0.84rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Hủy
+              </button>
+
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => handleFacebookOAuthLogin()}
+                style={{
+                  padding: '9px 20px',
+                  borderRadius: '8px',
+                  background: '#1877F2',
+                  color: '#fff',
+                  border: 'none',
+                  fontSize: '0.84rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                {loading ? 'Đang kết nối...' : 'Tiếp Tục Với Facebook'}
               </button>
             </div>
           </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import confetti from 'canvas-confetti';
 import { ToastProvider, useToast } from './context/ToastContext';
 import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
@@ -17,6 +18,9 @@ import { OrderTrackingModal } from './components/OrderTrackingModal';
 import { AuthModal } from './components/AuthModal';
 import { UserOrdersModal } from './components/UserOrdersModal';
 import { WishlistModal } from './components/WishlistModal';
+import { CustomerAccountModal } from './components/CustomerAccountModal';
+import { SupportPortalModal } from './components/SupportPortalModal';
+import { SmartNotificationAlert } from './components/SmartNotificationAlert';
 import { AdminDashboardModal } from './components/AdminDashboardModal';
 import { AdminPortalPage } from './pages/AdminPortalPage';
 import { Footer } from './components/Footer';
@@ -45,6 +49,41 @@ const ShopStoreView = ({ onNavigateAdmin }) => {
   const [adminOpen, setAdminOpen] = useState(false);
   const [userOrdersOpen, setUserOrdersOpen] = useState(false);
   const [wishlistOpen, setWishlistOpen] = useState(false);
+  const [accountModalOpen, setAccountModalOpen] = useState(false);
+  const [accountInitialTab, setAccountInitialTab] = useState('profile');
+  const [supportModalOpen, setSupportModalOpen] = useState(false);
+  const [supportInitialTab, setSupportInitialTab] = useState('faq');
+
+  const { addToast } = useToast();
+
+  // Handle gateway returns (VNPay & MoMo redirect callbacks)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paymentSuccess = params.get('paymentSuccess');
+    const orderCode = params.get('orderCode');
+    const method = params.get('method') || 'Cổng thanh toán';
+
+    if (paymentSuccess === 'true' && orderCode) {
+      addToast(`🎉 Thanh toán qua ${method} thành công cho đơn hàng ${orderCode}!`, 'success');
+      setOrderTrackingCode(orderCode);
+      setOrderTrackingOpen(true);
+      try {
+        confetti({
+          particleCount: 150,
+          spread: 80,
+          origin: { y: 0.6 },
+        });
+      } catch {}
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (paymentSuccess === 'false') {
+      addToast(`⚠️ Giao dịch qua ${method} chưa thành công hoặc đã bị huỷ.`, 'error');
+      if (orderCode) {
+        setOrderTrackingCode(orderCode);
+        setOrderTrackingOpen(true);
+      }
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [addToast]);
 
   // Filter options
   const categories = [
@@ -133,7 +172,18 @@ const ShopStoreView = ({ onNavigateAdmin }) => {
         }}
         onOpenOrderTracking={() => handleOpenOrderTracking('')}
         onOpenAdmin={onNavigateAdmin}
-        onOpenOrders={() => setUserOrdersOpen(true)}
+        onOpenOrders={() => {
+          setAccountInitialTab('orders');
+          setAccountModalOpen(true);
+        }}
+        onOpenAccount={(tab) => {
+          setAccountInitialTab(tab || 'profile');
+          setAccountModalOpen(true);
+        }}
+        onOpenSupport={(tab) => {
+          setSupportInitialTab(tab || 'faq');
+          setSupportModalOpen(true);
+        }}
         onOpenWishlist={() => setWishlistOpen(true)}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
@@ -152,6 +202,7 @@ const ShopStoreView = ({ onNavigateAdmin }) => {
           setSelectedCategory(cat);
           handleScrollToProducts();
         }}
+        products={products}
       />
 
       {/* Flash Sale Ticking Banner */}
@@ -267,6 +318,7 @@ const ShopStoreView = ({ onNavigateAdmin }) => {
         <OrderTrackingModal
           initialCode={orderTrackingCode}
           onClose={() => setOrderTrackingOpen(false)}
+          onOpenProduct={(p) => setSelectedProduct(p)}
         />
       )}
 
@@ -287,18 +339,33 @@ const ShopStoreView = ({ onNavigateAdmin }) => {
         />
       )}
 
-      {adminOpen && (
-        <AdminDashboardModal
-          onClose={() => setAdminOpen(false)}
-          onProductUpdated={fetchProducts}
-        />
-      )}
+      {/* Customer Account Portal Modal */}
+      <CustomerAccountModal
+        isOpen={accountModalOpen}
+        onClose={() => setAccountModalOpen(false)}
+        initialTab={accountInitialTab}
+        onOpenOrderTracking={handleOpenOrderTracking}
+      />
+
+      {/* Support & FAQ Portal Modal */}
+      <SupportPortalModal
+        isOpen={supportModalOpen}
+        onClose={() => setSupportModalOpen(false)}
+        initialTab={supportInitialTab}
+      />
+
+      {/* Smart Timed Floating Alerts (Low stock & price drops) */}
+      <SmartNotificationAlert onSelectProduct={(p) => setSelectedProduct(p)} />
 
       {/* Footer */}
       <Footer
         onSelectCategory={(cat) => {
           setSelectedCategory(cat);
           handleScrollToProducts();
+        }}
+        onOpenSupport={(tab) => {
+          setSupportInitialTab(tab || 'faq');
+          setSupportModalOpen(true);
         }}
       />
     </div>

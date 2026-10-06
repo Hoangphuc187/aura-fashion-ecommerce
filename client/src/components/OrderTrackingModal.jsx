@@ -8,10 +8,11 @@ import {
   Clock,
   MapPin,
   Calendar,
+  Star,
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 
-export const OrderTrackingModal = ({ initialCode = '', onClose }) => {
+export const OrderTrackingModal = ({ initialCode = '', onClose, onOpenProduct }) => {
   const { addToast } = useToast();
   const [code, setCode] = useState(initialCode);
   const [loading, setLoading] = useState(false);
@@ -297,8 +298,55 @@ export const OrderTrackingModal = ({ initialCode = '', onClose }) => {
                         Size: {item.size} | Màu: {item.color} | SL: {item.quantity}
                       </div>
                     </div>
-                    <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: '0.9rem' }}>
-                      {(item.price * item.quantity).toLocaleString('vi-VN')}₫
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: '0.9rem' }}>
+                        {(item.price * item.quantity).toLocaleString('vi-VN')}₫
+                      </div>
+                      {order.orderStatus === 'Delivered' && onOpenProduct && (
+                        <button
+                          type="button"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            try {
+                              const prodId = typeof item.product === 'object' ? item.product._id : item.product;
+                              const res = await fetch(`/api/products/${prodId}`);
+                              const data = await res.json();
+                              if (data.success && data.product) {
+                                onClose();
+                                onOpenProduct(data.product);
+                              }
+                            } catch (err) {
+                              console.error('Error fetching product for review:', err);
+                            }
+                          }}
+                          style={{
+                            marginTop: '6px',
+                            background: 'rgba(250, 204, 21, 0.15)',
+                            color: '#facc15',
+                            border: '1px solid rgba(250, 204, 21, 0.35)',
+                            borderRadius: '6px',
+                            padding: '3px 8px',
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            transition: 'all 0.2s',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = '#facc15';
+                            e.currentTarget.style.color = '#000';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'rgba(250, 204, 21, 0.15)';
+                            e.currentTarget.style.color = '#facc15';
+                          }}
+                        >
+                          <Star size={11} fill="#facc15" />
+                          <span>Đánh giá ngay</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}

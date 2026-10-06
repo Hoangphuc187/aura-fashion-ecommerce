@@ -145,6 +145,33 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const refreshUserProfile = async () => {
+    if (!user?.token) return null;
+    try {
+      const res = await fetch('/api/auth/profile', {
+        headers: { Authorization: `Bearer ${user.token}` },
+      });
+      const data = await res.json();
+      if (data.success && data.user) {
+        const merged = { ...user, ...data.user };
+        setUser(merged);
+        localStorage.setItem('aura_user', JSON.stringify(merged));
+        return merged;
+      }
+    } catch (err) {
+      console.error('Error refreshing user profile:', err);
+    }
+    return user;
+  };
+
+  const updateUser = (patch) => {
+    setUser((prev) => {
+      const updated = { ...prev, ...patch };
+      localStorage.setItem('aura_user', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   // Demo 1-click logins
   const loginAsDemoCustomer = async () => {
     await login('khachhang@gmail.com', 'user123');
@@ -172,6 +199,8 @@ export const AuthProvider = ({ children }) => {
         setAuthModalTab,
         loginAsDemoCustomer,
         loginAsDemoAdmin,
+        updateUser,
+        refreshUserProfile,
       }}
     >
       {children}

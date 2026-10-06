@@ -13,6 +13,12 @@ import {
   Zap,
   Menu,
   X,
+  MapPin,
+  Ticket,
+  Star,
+  Shield,
+  HelpCircle,
+  MessageSquare,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
@@ -26,6 +32,8 @@ export const Navbar = ({
   onOpenWishlist,
   searchQuery,
   setSearchQuery,
+  onOpenAccount,
+  onOpenSupport,
 }) => {
   const { user, isAdmin, logout, setAuthModalOpen, wishlist } = useAuth();
   const { totalItemsCount, setCartDrawerOpen, totalPrice } = useCart();
@@ -69,6 +77,7 @@ export const Navbar = ({
           alignItems: 'center',
           gap: '16px',
           letterSpacing: '0.5px',
+          flexWrap: 'wrap',
         }}
       >
         <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -80,6 +89,29 @@ export const Navbar = ({
           <Truck size={14} color="#10b981" />
           <span>MIỄN PHÍ GIAO HÀNG CHO ĐƠN TỪ 500K</span>
         </span>
+        <span style={{ color: '#52525b' }}>|</span>
+        <button
+          onClick={() => onOpenSupport && onOpenSupport('faq')}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: '#a1a1aa',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '5px',
+            fontSize: '0.78rem',
+            fontWeight: 600,
+            padding: 0,
+            transition: 'color 0.2s',
+          }}
+          onMouseEnter={(e) => (e.target.style.color = '#facc15')}
+          onMouseLeave={(e) => (e.target.style.color = '#a1a1aa')}
+          title="Trung tâm Trợ giúp, FAQ và Gửi Ticket"
+        >
+          <HelpCircle size={13} color="#facc15" />
+          <span>Hỗ trợ & FAQ</span>
+        </button>
       </div>
 
       {/* Main Sticky Navbar */}
@@ -508,14 +540,14 @@ export const Navbar = ({
                   <button
                     onClick={() => {
                       setUserDropdownOpen(false);
-                      onOpenOrders();
+                      if (onOpenAccount) onOpenAccount('profile');
                     }}
                     style={{
                       width: '100%',
                       display: 'flex',
                       alignItems: 'center',
                       gap: '10px',
-                      padding: '10px 12px',
+                      padding: '8px 12px',
                       background: 'transparent',
                       border: 'none',
                       color: '#cbd5e1',
@@ -529,8 +561,208 @@ export const Navbar = ({
                     onMouseEnter={(e) => (e.target.style.background = 'rgba(255,255,255,0.08)')}
                     onMouseLeave={(e) => (e.target.style.background = 'transparent')}
                   >
-                    <Package size={16} />
+                    <UserIcon size={15} color="#60a5fa" />
+                    <span>Hồ sơ của tôi</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setUserDropdownOpen(false);
+                      if (onOpenAccount) onOpenAccount('addresses');
+                    }}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '8px 12px',
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#cbd5e1',
+                      fontSize: '0.84rem',
+                      fontWeight: 500,
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'background 0.15s',
+                    }}
+                    onMouseEnter={(e) => (e.target.style.background = 'rgba(255,255,255,0.08)')}
+                    onMouseLeave={(e) => (e.target.style.background = 'transparent')}
+                  >
+                    <MapPin size={15} color="#10b981" />
+                    <span>Sổ địa chỉ nhận hàng</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setUserDropdownOpen(false);
+                      if (onOpenAccount) onOpenAccount('orders');
+                      else onOpenOrders();
+                    }}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '8px 12px',
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#cbd5e1',
+                      fontSize: '0.84rem',
+                      fontWeight: 500,
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'background 0.15s',
+                    }}
+                    onMouseEnter={(e) => (e.target.style.background = 'rgba(255,255,255,0.08)')}
+                    onMouseLeave={(e) => (e.target.style.background = 'transparent')}
+                  >
+                    <Package size={15} color="#f59e0b" />
                     <span>Đơn hàng của tôi</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setUserDropdownOpen(false);
+                      if (onOpenAccount) onOpenAccount('reviews');
+                    }}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '8px 12px',
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#cbd5e1',
+                      fontSize: '0.84rem',
+                      fontWeight: 500,
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'background 0.15s',
+                    }}
+                    onMouseEnter={(e) => (e.target.style.background = 'rgba(255,255,255,0.08)')}
+                    onMouseLeave={(e) => (e.target.style.background = 'transparent')}
+                  >
+                    <Star size={15} color="#eab308" />
+                    <span>Đánh giá của tôi</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setUserDropdownOpen(false);
+                      if (onOpenAccount) onOpenAccount('vouchers');
+                    }}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '8px 12px',
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#cbd5e1',
+                      fontSize: '0.84rem',
+                      fontWeight: 500,
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'background 0.15s',
+                    }}
+                    onMouseEnter={(e) => (e.target.style.background = 'rgba(255,255,255,0.08)')}
+                    onMouseLeave={(e) => (e.target.style.background = 'transparent')}
+                  >
+                    <Ticket size={15} color="#ec4899" />
+                    <span>Kho Voucher</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setUserDropdownOpen(false);
+                      if (onOpenAccount) onOpenAccount('wishlist');
+                      else onOpenWishlist();
+                    }}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '8px 12px',
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#cbd5e1',
+                      fontSize: '0.84rem',
+                      fontWeight: 500,
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'background 0.15s',
+                    }}
+                    onMouseEnter={(e) => (e.target.style.background = 'rgba(255,255,255,0.08)')}
+                    onMouseLeave={(e) => (e.target.style.background = 'transparent')}
+                  >
+                    <Heart size={15} color="#f43f5e" />
+                    <span>Sản phẩm yêu thích</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setUserDropdownOpen(false);
+                      if (onOpenAccount) onOpenAccount('security');
+                    }}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '8px 12px',
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#cbd5e1',
+                      fontSize: '0.84rem',
+                      fontWeight: 500,
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'background 0.15s',
+                    }}
+                    onMouseEnter={(e) => (e.target.style.background = 'rgba(255,255,255,0.08)')}
+                    onMouseLeave={(e) => (e.target.style.background = 'transparent')}
+                  >
+                    <Shield size={15} color="#a855f7" />
+                    <span>Bảo mật & Thiết bị</span>
+                  </button>
+
+                  <div style={{ height: '1px', background: 'rgba(255,255,255,0.08)', margin: '6px 0' }} />
+
+                  <button
+                    onClick={() => {
+                      setUserDropdownOpen(false);
+                      if (onOpenSupport) onOpenSupport('faq');
+                    }}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '8px 12px',
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#94a3b8',
+                      fontSize: '0.84rem',
+                      fontWeight: 500,
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'background 0.15s',
+                    }}
+                    onMouseEnter={(e) => (e.target.style.background = 'rgba(255,255,255,0.08)')}
+                    onMouseLeave={(e) => (e.target.style.background = 'transparent')}
+                  >
+                    <HelpCircle size={15} color="#38bdf8" />
+                    <span>Hỗ trợ & FAQ</span>
                   </button>
 
                   {isAdmin && (
@@ -545,21 +777,22 @@ export const Navbar = ({
                         display: 'flex',
                         alignItems: 'center',
                         gap: '10px',
-                        padding: '10px 12px',
-                        background: 'transparent',
-                        border: 'none',
+                        padding: '9px 12px',
+                        background: 'rgba(250, 204, 21, 0.08)',
+                        border: '1px solid rgba(250, 204, 21, 0.25)',
                         color: '#facc15',
                         fontSize: '0.84rem',
-                        fontWeight: 600,
+                        fontWeight: 700,
                         borderRadius: '8px',
                         cursor: 'pointer',
                         textAlign: 'left',
+                        margin: '4px 0',
                         transition: 'background 0.15s',
                       }}
-                      onMouseEnter={(e) => (e.target.style.background = 'rgba(250,204,21,0.1)')}
-                      onMouseLeave={(e) => (e.target.style.background = 'transparent')}
+                      onMouseEnter={(e) => (e.target.style.background = 'rgba(250,204,21,0.18)')}
+                      onMouseLeave={(e) => (e.target.style.background = 'rgba(250, 204, 21, 0.08)')}
                     >
-                      <LayoutDashboard size={16} />
+                      <LayoutDashboard size={15} />
                       <span>Trang Quản Trị (/admin)</span>
                     </button>
                   )}
@@ -574,7 +807,7 @@ export const Navbar = ({
                       display: 'flex',
                       alignItems: 'center',
                       gap: '10px',
-                      padding: '10px 12px',
+                      padding: '8px 12px',
                       background: 'transparent',
                       border: 'none',
                       color: '#f87171',
@@ -590,7 +823,7 @@ export const Navbar = ({
                     onMouseEnter={(e) => (e.target.style.background = 'rgba(239,68,68,0.1)')}
                     onMouseLeave={(e) => (e.target.style.background = 'transparent')}
                   >
-                    <LogOut size={16} />
+                    <LogOut size={15} />
                     <span>Đăng xuất</span>
                   </button>
                 </div>
@@ -653,6 +886,101 @@ export const Navbar = ({
                 {cat.label}
               </button>
             ))}
+
+            <div style={{ height: '1px', background: 'rgba(255,255,255,0.08)', margin: '8px 0' }} />
+
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                if (onOpenSupport) onOpenSupport('faq');
+              }}
+              style={{
+                textAlign: 'left',
+                padding: '10px 14px',
+                background: 'rgba(56, 189, 248, 0.08)',
+                color: '#38bdf8',
+                border: '1px solid rgba(56, 189, 248, 0.2)',
+                borderRadius: '8px',
+                fontSize: '0.88rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                cursor: 'pointer',
+              }}
+            >
+              <HelpCircle size={16} />
+              <span>Hỗ trợ khách hàng & FAQ</span>
+            </button>
+
+            {user ? (
+              <>
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    if (onOpenAccount) onOpenAccount('profile');
+                  }}
+                  style={{
+                    textAlign: 'left',
+                    padding: '10px 14px',
+                    background: 'rgba(255, 255, 255, 0.06)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '0.88rem',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <UserIcon size={16} color="#60a5fa" />
+                  <span>Tài khoản của tôi ({user.name})</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    if (onOpenAccount) onOpenAccount('orders');
+                  }}
+                  style={{
+                    textAlign: 'left',
+                    padding: '10px 14px',
+                    background: 'rgba(255, 255, 255, 0.06)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '0.88rem',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Package size={16} color="#f59e0b" />
+                  <span>Đơn hàng của tôi</span>
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setAuthModalOpen(true);
+                }}
+                className="btn-primary"
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  borderRadius: '8px',
+                  justifyContent: 'center',
+                  fontSize: '0.88rem',
+                }}
+              >
+                <UserIcon size={16} />
+                <span>Đăng nhập / Đăng ký</span>
+              </button>
+            )}
           </div>
         )}
       </header>

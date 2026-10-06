@@ -9,6 +9,9 @@ import authRoutes from './routes/authRoutes.js';
 import productRoutes from './routes/productRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
+import paymentRoutes from './routes/paymentRoutes.js';
+import couponRoutes from './routes/couponRoutes.js';
+import supportRoutes from './routes/supportRoutes.js';
 
 dotenv.config();
 // Validate critical environment secrets on startup
@@ -570,6 +573,9 @@ app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/payment', paymentRoutes);
+app.use('/api/coupons', couponRoutes);
+app.use('/api/support', supportRoutes);
 
 // Catch-all 404 Handler for undefined routes (Anti-Directory Fuzzing Detection)
 app.use((req, res) => {

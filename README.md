@@ -198,5 +198,5 @@ VNPAY_URL=https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
 
 Mở trình duyệt truy cập:
 * 🛍️ **Cửa hàng:** [http://localhost:3000](http://localhost:3000)
-* ⚙️ **Trang Quản Trị:** [http://localhost:3000/admin](http://localhost:3000/admin)
+* ⚙️ **Trang Quản Trị chỉ vào được khi dùng tk admin:** [http://localhost:3000/admin](http://localhost:3000/admin)
 * 📚 **API Dashboard:** [http://localhost:5000](http://localhost:5000)

@@ -115,6 +115,10 @@ const userSchema = new mongoose.Schema(
   }
 );
 
+// High-performance query indexes
+userSchema.index({ role: 1, isBanned: 1 });
+userSchema.index({ phone: 1 });
+
 userSchema.virtual('isLocked').get(function () {
   return Boolean(this.lockUntil && this.lockUntil > Date.now());
 });

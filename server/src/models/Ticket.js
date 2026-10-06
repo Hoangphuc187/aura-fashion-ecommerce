@@ -78,4 +78,9 @@ const ticketSchema = new mongoose.Schema(
   }
 );
 
+// High-performance query indexes
+ticketSchema.index({ user: 1, createdAt: -1 });
+ticketSchema.index({ status: 1, createdAt: -1 });
+ticketSchema.index({ email: 1 });
+
 export default mongoose.model('Ticket', ticketSchema);

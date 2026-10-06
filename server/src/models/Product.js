@@ -128,6 +128,14 @@ const productSchema = new mongoose.Schema(
   }
 );
 
+// High-performance query indexes
+productSchema.index({ category: 1, price: 1 });
+productSchema.index({ createdAt: -1 });
+productSchema.index({ isBestSeller: 1, rating: -1 });
+productSchema.index({ isNewArrival: 1, createdAt: -1 });
+productSchema.index({ featured: 1 });
+productSchema.index({ name: 'text', description: 'text', tags: 'text' });
+
 productSchema.pre('validate', function (next) {
   if (!this.slug && this.name) {
     this.slug = this.name

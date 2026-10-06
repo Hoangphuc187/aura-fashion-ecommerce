@@ -1,6 +1,13 @@
 import Product from '../models/Product.js';
 import Order from '../models/Order.js';
 import { escapeRegex } from '../middleware/sanitize.js';
+import { memoryCache } from '../utils/cache.js';
+
+export const invalidateProductCache = () => {
+  memoryCache.invalidatePrefix('products_');
+  memoryCache.del('featured_trending');
+  memoryCache.del('filter_metadata');
+};
 
 export const getProducts = async (req, res) => {
   try {
@@ -16,6 +23,13 @@ export const getProducts = async (req, res) => {
       page = 1,
       limit = 12,
     } = req.query;
+
+    const cacheKey = `products_${JSON.stringify(req.query)}`;
+    const cached = memoryCache.get(cacheKey);
+    if (cached) {
+      res.setHeader('X-Cache', 'HIT');
+      return res.json(cached);
+    }
 
     const query = {};
 
@@ -73,15 +87,20 @@ export const getProducts = async (req, res) => {
     const products = await Product.find(query)
       .sort(sortOption)
       .skip(skip)
-      .limit(limitNum);
+      .limit(limitNum)
+      .lean();
 
-    res.json({
+    const responsePayload = {
       success: true,
       products,
       page: pageNum,
       pages: Math.ceil(total / limitNum) || 1,
       total,
-    });
+    };
+
+    memoryCache.set(cacheKey, responsePayload, 30); // 30s cache TTL
+    res.setHeader('X-Cache', 'MISS');
+    res.json(responsePayload);
   } catch (error) {
     console.error('getProducts error:', error);
     res.status(500).json({ success: false, message: 'Lỗi nạp danh sách sản phẩm' });
@@ -90,16 +109,29 @@ export const getProducts = async (req, res) => {
 
 export const getFeaturedAndTrending = async (req, res) => {
   try {
-    const featured = await Product.find({ featured: true }).limit(8);
-    const bestSellers = await Product.find({ isBestSeller: true }).limit(8);
-    const newArrivals = await Product.find({ isNewArrival: true }).sort({ createdAt: -1 }).limit(8);
+    const cacheKey = 'featured_trending';
+    const cached = memoryCache.get(cacheKey);
+    if (cached) {
+      res.setHeader('X-Cache', 'HIT');
+      return res.json(cached);
+    }
 
-    res.json({
+    const [featured, bestSellers, newArrivals] = await Promise.all([
+      Product.find({ featured: true }).limit(8).lean(),
+      Product.find({ isBestSeller: true }).limit(8).lean(),
+      Product.find({ isNewArrival: true }).sort({ createdAt: -1 }).limit(8).lean(),
+    ]);
+
+    const responsePayload = {
       success: true,
       featured,
       bestSellers,
       newArrivals,
-    });
+    };
+
+    memoryCache.set(cacheKey, responsePayload, 60); // 60s cache TTL
+    res.setHeader('X-Cache', 'MISS');
+    res.json(responsePayload);
   } catch (error) {
     console.error('getFeaturedAndTrending error:', error);
     res.status(500).json({ success: false, message: 'Lỗi nạp sản phẩm nổi bật' });
@@ -112,10 +144,10 @@ export const getProductByIdOrSlug = async (req, res) => {
     let product;
 
     if (id.match(/^[0-9a-fA-F]{24}$/)) {
-      product = await Product.findById(id);
+      product = await Product.findById(id).lean();
     }
     if (!product) {
-      product = await Product.findOne({ slug: id });
+      product = await Product.findOne({ slug: id }).lean();
     }
 
     if (!product) {
@@ -125,7 +157,7 @@ export const getProductByIdOrSlug = async (req, res) => {
     const related = await Product.find({
       category: product.category,
       _id: { $ne: product._id },
-    }).limit(4);
+    }).limit(4).lean();
 
     res.json({
       success: true,
@@ -187,6 +219,7 @@ export const createProduct = async (req, res) => {
     });
 
     const savedProduct = await newProduct.save();
+    invalidateProductCache();
     res.status(201).json({
       success: true,
       message: 'Tạo sản phẩm thành công',
@@ -232,6 +265,7 @@ export const updateProduct = async (req, res) => {
     });
 
     const updated = await product.save();
+    invalidateProductCache();
 
     res.json({
       success: true,
@@ -255,6 +289,7 @@ export const deleteProduct = async (req, res) => {
     }
 
     await Product.findByIdAndDelete(req.params.id);
+    invalidateProductCache();
     res.json({ success: true, message: 'Xoá sản phẩm thành công' });
   } catch (error) {
     console.error('deleteProduct error:', error);
@@ -331,6 +366,7 @@ export const addReview = async (req, res) => {
       product.reviews.reduce((acc, item) => item.rating + acc, 0) / product.reviews.length;
 
     await product.save();
+    invalidateProductCache();
     res.status(201).json({
       success: true,
       message: 'Thêm đánh giá thành công!',
@@ -397,3 +433,77 @@ export const getFilterMetadata = async (req, res) => {
     res.status(500).json({ success: false, message: 'Lỗi nạp metadata bộ lọc' });
   }
 };
+
+/**
+ * Admin: Get all reviews across all products for review moderation
+ */
+export const getAllReviewsAdmin = async (req, res) => {
+  try {
+    const products = await Product.find({ 'reviews.0': { $exists: true } }, 'name slug images reviews').lean();
+    const allReviews = [];
+
+    products.forEach((p) => {
+      (p.reviews || []).forEach((r) => {
+        allReviews.push({
+          _id: r._id,
+          productId: p._id,
+          productName: p.name,
+          productSlug: p.slug,
+          productImage: p.images?.[0] || '',
+          user: r.user,
+          userName: r.userName || 'Khách hàng',
+          userAvatar: r.userAvatar || '',
+          rating: r.rating,
+          comment: r.comment,
+          images: r.images || [],
+          createdAt: r.createdAt,
+        });
+      });
+    });
+
+    // Newest reviews first
+    allReviews.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    res.json({
+      success: true,
+      reviews: allReviews,
+      total: allReviews.length,
+    });
+  } catch (error) {
+    console.error('getAllReviewsAdmin error:', error);
+    res.status(500).json({ success: false, message: 'Lỗi nạp danh sách đánh giá của khách hàng' });
+  }
+};
+
+/**
+ * Admin: Delete inappropriate review from a product
+ */
+export const deleteReviewAdmin = async (req, res) => {
+  try {
+    const { productId, reviewId } = req.params;
+    const product = await Product.findById(productId);
+    if (!product) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy sản phẩm' });
+    }
+
+    product.reviews = product.reviews.filter((r) => r._id.toString() !== reviewId);
+    product.numReviews = product.reviews.length;
+    product.rating = product.reviews.length > 0
+      ? product.reviews.reduce((acc, item) => item.rating + acc, 0) / product.reviews.length
+      : 5;
+
+    await product.save();
+    invalidateProductCache();
+
+    res.json({
+      success: true,
+      message: 'Đã gỡ bỏ đánh giá thành công',
+      numReviews: product.numReviews,
+      rating: Number(product.rating.toFixed(1)),
+    });
+  } catch (error) {
+    console.error('deleteReviewAdmin error:', error);
+    res.status(500).json({ success: false, message: 'Lỗi khi gỡ đánh giá' });
+  }
+};
+

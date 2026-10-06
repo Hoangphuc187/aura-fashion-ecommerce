@@ -280,19 +280,36 @@ export const UserOrdersModal = ({ onClose, onSelectOrderCode }) => {
                     </span>
                   </div>
 
-                  <span
-                    style={{
-                      background: 'rgba(255, 255, 255, 0.08)',
-                      color: getStatusColor(ord.orderStatus),
-                      border: `1px solid ${getStatusColor(ord.orderStatus)}`,
-                      padding: '4px 12px',
-                      borderRadius: '9999px',
-                      fontSize: '0.75rem',
-                      fontWeight: 700,
-                    }}
-                  >
-                    {getStatusText(ord.orderStatus)}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.08)',
+                        color: getStatusColor(ord.orderStatus),
+                        border: `1px solid ${getStatusColor(ord.orderStatus)}`,
+                        padding: '4px 12px',
+                        borderRadius: '9999px',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {getStatusText(ord.orderStatus)}
+                    </span>
+                    {ord.orderStatus === 'Delivered' && (
+                      <span
+                        style={{
+                          background: 'rgba(250, 204, 21, 0.15)',
+                          color: '#facc15',
+                          border: '1px solid rgba(250, 204, 21, 0.35)',
+                          padding: '3px 10px',
+                          borderRadius: '9999px',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                        }}
+                      >
+                        ★ Có thể đánh giá
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Items Preview */}

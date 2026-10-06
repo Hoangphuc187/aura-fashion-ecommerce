@@ -6,6 +6,7 @@ import {
   getAllOrders,
   updateOrderStatus,
   applyCoupon,
+  customerCancelOrder,
 } from '../controllers/orderController.js';
 import { protect, stealthAdminProtect, optionalProtect } from '../middleware/auth.js';
 
@@ -15,6 +16,7 @@ router.post('/', optionalProtect, createOrder); // Allows guest or authenticated
 router.post('/coupon', applyCoupon);
 router.get('/myorders', protect, getMyOrders);
 router.get('/:id', optionalProtect, getOrderById); // IDOR Protected
+router.put('/:id/cancel', protect, customerCancelOrder); // Customer self-cancel
 
 // Admin order routes (Stealth cloaked with 404 on unauthorized)
 router.get('/', stealthAdminProtect, getAllOrders);

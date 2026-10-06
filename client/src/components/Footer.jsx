@@ -1,7 +1,7 @@
 import React from 'react';
-import { Zap, Heart, Shield, RefreshCw, Truck, Mail, Phone, MapPin } from 'lucide-react';
+import { Zap, Heart, Shield, RefreshCw, Truck, Mail, Phone, MapPin, HelpCircle, MessageSquare, Ticket } from 'lucide-react';
 
-export const Footer = ({ onSelectCategory }) => {
+export const Footer = ({ onSelectCategory, onOpenSupport }) => {
   return (
     <footer
       style={{
@@ -90,20 +90,60 @@ export const Footer = ({ onSelectCategory }) => {
             Chính Sách & Hỗ Trợ
           </h4>
           <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.86rem' }}>
-            <li style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <li
+              onClick={() => onOpenSupport && onOpenSupport('faq')}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', transition: 'color 0.2s' }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = '#facc15')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = '#94a3b8')}
+            >
               <RefreshCw size={14} color="#10b981" />
               <span>Chính sách đổi trả trong 30 ngày</span>
             </li>
-            <li style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <li
+              onClick={() => onOpenSupport && onOpenSupport('faq')}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', transition: 'color 0.2s' }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = '#facc15')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = '#94a3b8')}
+            >
               <Truck size={14} color="#facc15" />
-              <span>Vận chuyển hỏa tốc trong 2H</span>
+              <span>Vận chuyển hỏa tốc trong 2H & Đồng kiểm</span>
             </li>
-            <li style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <li
+              onClick={() => onOpenSupport && onOpenSupport('faq')}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', transition: 'color 0.2s' }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = '#facc15')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = '#94a3b8')}
+            >
               <Shield size={14} color="#3b82f6" />
               <span>Bảo hành hình in và đường may 6 tháng</span>
             </li>
-            <li>Hướng dẫn chọn size chuẩn xác</li>
-            <li>Phương thức thanh toán & bảo mật thông tin</li>
+            <li
+              onClick={() => onOpenSupport && onOpenSupport('chat')}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', transition: 'color 0.2s' }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = '#facc15')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = '#94a3b8')}
+            >
+              <MessageSquare size={14} color="#a855f7" />
+              <span>Tư vấn chọn size chuẩn xác (Live Chat)</span>
+            </li>
+            <li
+              onClick={() => onOpenSupport && onOpenSupport('contact')}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', transition: 'color 0.2s' }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = '#facc15')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = '#94a3b8')}
+            >
+              <Ticket size={14} color="#ec4899" />
+              <span>Gửi yêu cầu hỗ trợ / Tạo Ticket (#TK)</span>
+            </li>
+            <li
+              onClick={() => onOpenSupport && onOpenSupport('lookup')}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', transition: 'color 0.2s' }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = '#facc15')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = '#94a3b8')}
+            >
+              <HelpCircle size={14} color="#38bdf8" />
+              <span>Tra cứu tiến độ xử lý khiếu nại</span>
+            </li>
           </ul>
         </div>
 

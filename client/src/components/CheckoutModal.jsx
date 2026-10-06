@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   CheckCircle2,
@@ -46,6 +46,7 @@ export const CheckoutModal = ({ onOpenOrderTracking }) => {
   const [formData, setFormData] = useState({
     fullName: user?.name || '',
     phone: user?.phone || '',
+    email: user?.email || '',
     address: user?.address?.street || '',
     ward: user?.address?.ward || '',
     district: user?.address?.district || '',
@@ -54,6 +55,38 @@ export const CheckoutModal = ({ onOpenOrderTracking }) => {
     shippingMethod: 'standard', // 'standard' | 'express'
     paymentMethod: 'MOMO', // Default to MOMO or COD
   });
+
+  // Automatically prefill user's default saved address whenever modal opens
+  useEffect(() => {
+    if (checkoutModalOpen && user) {
+      const defaultAddr =
+        (user.addresses && user.addresses.find((a) => a.isDefault)) || user.addresses?.[0];
+
+      if (defaultAddr) {
+        setFormData((prev) => ({
+          ...prev,
+          fullName: defaultAddr.fullName || user.name || prev.fullName,
+          phone: defaultAddr.phone || user.phone || prev.phone,
+          email: user.email || prev.email,
+          address: defaultAddr.street || prev.address,
+          ward: defaultAddr.ward || prev.ward,
+          district: defaultAddr.district || prev.district,
+          city: defaultAddr.city || prev.city || 'Hồ Chí Minh',
+        }));
+      } else if (user.address || user.name || user.phone) {
+        setFormData((prev) => ({
+          ...prev,
+          fullName: user.name || prev.fullName,
+          phone: user.phone || prev.phone,
+          email: user.email || prev.email,
+          address: user.address?.street || user.address || prev.address,
+          ward: user.address?.ward || prev.ward,
+          district: user.address?.district || prev.district,
+          city: user.address?.city || prev.city || 'Hồ Chí Minh',
+        }));
+      }
+    }
+  }, [checkoutModalOpen, user]);
 
   if (!checkoutModalOpen) return null;
 
@@ -111,6 +144,7 @@ export const CheckoutModal = ({ onOpenOrderTracking }) => {
         shippingAddress: {
           fullName: formData.fullName.trim(),
           phone: formData.phone.trim(),
+          email: (formData.email || user?.email || '').trim(),
           address: formData.address.trim(),
           ward: formData.ward.trim(),
           district: formData.district.trim(),
@@ -150,6 +184,43 @@ export const CheckoutModal = ({ onOpenOrderTracking }) => {
         console.error('Error saving local order code:', err);
       }
 
+      // 1. ONLINE GATEWAY: VNPAY
+      if (formData.paymentMethod === 'VNPAY') {
+        addToast('Đang kết nối cổng thanh toán VNPAY-QR...', 'info');
+        const payRes = await fetch('/api/payment/create-vnpay-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderCode: data.order.orderCode }),
+        });
+        const payData = await payRes.json();
+        if (payData.success && payData.paymentUrl) {
+          clearCart();
+          window.location.href = payData.paymentUrl;
+          return;
+        } else {
+          throw new Error(payData.message || 'Không thể tạo phiên thanh toán VNPay');
+        }
+      }
+
+      // 2. ONLINE GATEWAY: MOMO
+      if (formData.paymentMethod === 'MOMO') {
+        addToast('Đang kết nối cổng thanh toán MoMo...', 'info');
+        const payRes = await fetch('/api/payment/create-momo-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderCode: data.order.orderCode }),
+        });
+        const payData = await payRes.json();
+        if (payData.success && payData.paymentUrl) {
+          clearCart();
+          window.location.href = payData.paymentUrl;
+          return;
+        } else {
+          throw new Error(payData.message || 'Không thể tạo phiên thanh toán MoMo');
+        }
+      }
+
+      // 3. COD & Other direct payment methods
       setCreatedOrder(data.order);
       clearCart();
       setStep(3);
@@ -341,6 +412,62 @@ export const CheckoutModal = ({ onOpenOrderTracking }) => {
                   </span>
                 </div>
 
+                {/* Quick select from user's saved addresses */}
+                {user?.addresses && user.addresses.length > 0 && (
+                  <div
+                    style={{
+                      marginBottom: '16px',
+                      background: 'rgba(250, 204, 21, 0.05)',
+                      border: '1px solid rgba(250, 204, 21, 0.25)',
+                      padding: '12px 14px',
+                      borderRadius: '12px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#facc15' }}>
+                        📍 Chọn nhanh địa chỉ từ Sổ địa chỉ của bạn:
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      {user.addresses.map((addr, idx) => {
+                        const isSelected = formData.address === addr.street;
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => {
+                              setFormData((prev) => ({
+                                ...prev,
+                                fullName: addr.fullName || prev.fullName,
+                                phone: addr.phone || prev.phone,
+                                address: addr.street || prev.address,
+                                ward: addr.ward || '',
+                                district: addr.district || '',
+                                city: addr.city || 'Hồ Chí Minh',
+                              }));
+                              addToast(`Đã áp dụng địa chỉ: ${addr.street}`, 'success');
+                            }}
+                            style={{
+                              background: isSelected ? '#facc15' : 'rgba(255, 255, 255, 0.08)',
+                              color: isSelected ? '#000' : '#e2e8f0',
+                              border: isSelected ? '1px solid #facc15' : '1px solid rgba(255, 255, 255, 0.12)',
+                              padding: '6px 12px',
+                              borderRadius: '8px',
+                              fontSize: '0.75rem',
+                              fontWeight: isSelected ? 800 : 500,
+                              cursor: 'pointer',
+                              transition: 'all 0.15s',
+                            }}
+                          >
+                            {addr.isDefault ? '⭐ ' : ''}
+                            {addr.fullName} - {addr.street}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <div
                   style={{
                     display: 'grid',
@@ -397,6 +524,29 @@ export const CheckoutModal = ({ onOpenOrderTracking }) => {
                       }}
                     />
                   </div>
+                </div>
+
+                <div style={{ marginBottom: '14px' }}>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px' }}>
+                    Email nhận thông báo đơn hàng & hóa đơn (Không bắt buộc)
+                  </label>
+                  <input
+                    type="email"
+                    name="email"
+                    placeholder="Ví dụ: your-email@gmail.com (Hệ thống sẽ gửi mã tra cứu & xác nhận)"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    style={{
+                      width: '100%',
+                      background: 'rgba(255, 255, 255, 0.06)',
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      padding: '10px 14px',
+                      borderRadius: '8px',
+                      color: '#fff',
+                      fontSize: '0.88rem',
+                      outline: 'none',
+                    }}
+                  />
                 </div>
 
                 <div style={{ marginBottom: '14px' }}>

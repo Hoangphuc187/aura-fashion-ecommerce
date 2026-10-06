@@ -21,14 +21,14 @@ const userSchema = new mongoose.Schema(
     },
     authProvider: {
       type: String,
-      enum: ['local', 'google', 'github'],
+      enum: ['local', 'google', 'facebook'],
       default: 'local',
     },
     googleId: {
       type: String,
       default: null,
     },
-    githubId: {
+    facebookId: {
       type: String,
       default: null,
     },
@@ -41,12 +41,32 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    dob: {
+      type: String,
+      default: '',
+    },
+    gender: {
+      type: String,
+      enum: ['Nam', 'Nữ', 'Khác', ''],
+      default: '',
+    },
     address: {
       street: { type: String, default: '' },
       ward: { type: String, default: '' },
       district: { type: String, default: '' },
       city: { type: String, default: '' },
     },
+    addresses: [
+      {
+        fullName: { type: String, default: '' },
+        phone: { type: String, default: '' },
+        street: { type: String, default: '' },
+        ward: { type: String, default: '' },
+        district: { type: String, default: '' },
+        city: { type: String, default: '' },
+        isDefault: { type: Boolean, default: false },
+      },
+    ],
     avatar: {
       type: String,
       default: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
@@ -55,6 +75,22 @@ const userSchema = new mongoose.Schema(
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Product',
+      },
+    ],
+    isBanned: {
+      type: Boolean,
+      default: false,
+    },
+    tokenVersion: {
+      type: Number,
+      default: 0,
+    },
+    activeDevices: [
+      {
+        deviceId: { type: String, default: '' },
+        deviceName: { type: String, default: 'Chrome trên Windows' },
+        ip: { type: String, default: '127.0.0.1' },
+        lastActive: { type: Date, default: Date.now },
       },
     ],
     loginAttempts: {

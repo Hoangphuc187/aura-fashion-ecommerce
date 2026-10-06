@@ -20,6 +20,20 @@ export const protect = async (req, res, next) => {
         return res.status(401).json({ success: false, message: 'Tài khoản không tồn tại hoặc đã bị xóa' });
       }
 
+      if (req.user.isBanned) {
+        return res.status(403).json({
+          success: false,
+          message: 'Tài khoản của bạn đã bị khóa. Vui lòng liên hệ bộ phận hỗ trợ.',
+        });
+      }
+
+      if (decoded.tokenVersion !== undefined && req.user.tokenVersion && decoded.tokenVersion < req.user.tokenVersion) {
+        return res.status(401).json({
+          success: false,
+          message: 'Phiên đăng nhập đã kết thúc sau khi đăng xuất khỏi tất cả thiết bị.',
+        });
+      }
+
       // If user account is locked, reject requests
       if (req.user.lockUntil && req.user.lockUntil > Date.now()) {
         return res.status(423).json({

@@ -7,6 +7,7 @@ import {
   updateProduct,
   deleteProduct,
   addReview,
+  checkReviewEligibility,
   getFilterMetadata,
 } from '../controllers/productController.js';
 import { protect, stealthAdminProtect } from '../middleware/auth.js';
@@ -19,6 +20,7 @@ router.get('/filters', getFilterMetadata);
 router.get('/:id', getProductByIdOrSlug);
 
 // Reviews
+router.get('/:id/review-eligibility', protect, checkReviewEligibility);
 router.post('/:id/reviews', protect, addReview);
 
 // Admin product management (Stealth cloaked with 404 on unauthorized)

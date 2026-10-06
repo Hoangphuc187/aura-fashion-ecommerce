@@ -37,6 +37,7 @@ const orderSchema = new mongoose.Schema(
     shippingAddress: {
       fullName: { type: String, required: true },
       phone: { type: String, required: true },
+      email: { type: String, default: '' },
       address: { type: String, required: true },
       ward: { type: String, default: '' },
       district: { type: String, default: '' },
@@ -60,7 +61,7 @@ const orderSchema = new mongoose.Schema(
     },
     orderStatus: {
       type: String,
-      enum: ['Pending', 'Processing', 'Shipping', 'Delivered', 'Cancelled'],
+      enum: ['Pending', 'Processing', 'Shipping', 'Delivered', 'Cancelled', 'Refunded'],
       default: 'Pending',
     },
     itemsPrice: { type: Number, required: true, default: 0 },
@@ -68,6 +69,7 @@ const orderSchema = new mongoose.Schema(
     discountAmount: { type: Number, required: true, default: 0 },
     totalPrice: { type: Number, required: true, default: 0 },
     couponCode: { type: String, default: '' },
+    refundReason: { type: String, default: '' },
     timeline: [timelineSchema],
   },
   {

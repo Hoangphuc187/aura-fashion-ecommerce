@@ -27,6 +27,12 @@ import {
   Search,
   RefreshCw,
   AlertTriangle,
+  Ticket,
+  Printer,
+  HelpCircle,
+  MessageSquare,
+  KeyRound,
+  Ban,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -35,12 +41,34 @@ export const AdminPortalPage = ({ onNavigateHome }) => {
   const { user, logout, loading: authLoading } = useAuth();
   const { addToast } = useToast();
 
-  const [activeTab, setActiveTab] = useState('products'); // 'stats' | 'products' | 'orders' | 'security'
+  const [activeTab, setActiveTab] = useState('products'); // 'stats' | 'products' | 'orders' | 'customers' | 'coupons' | 'inventory' | 'tickets' | 'security'
   const [stats, setStats] = useState(null);
   const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchProduct, setSearchProduct] = useState('');
+
+  // Extended Admin States
+  const [usersList, setUsersList] = useState([]);
+  const [userSearch, setUserSearch] = useState('');
+  const [couponsList, setCouponsList] = useState([]);
+  const [showAddCoupon, setShowAddCoupon] = useState(false);
+  const [couponForm, setCouponForm] = useState({
+    code: '',
+    discountType: 'percent',
+    discountValue: 20,
+    minOrderAmount: 200000,
+    maxDiscountAmount: 100000,
+    usageLimit: 100,
+    perUserLimit: 1,
+    expiresAt: '',
+  });
+  const [inventoryData, setInventoryData] = useState(null);
+  const [ticketsList, setTicketsList] = useState([]);
+  const [ticketFilter, setTicketFilter] = useState('All');
+  const [selectedTicket, setSelectedTicket] = useState(null);
+  const [ticketReplyText, setTicketReplyText] = useState('');
+  const [selectedInvoiceOrder, setSelectedInvoiceOrder] = useState(null);
 
   // Add Product Form Toggle & State
   const [showAddProduct, setShowAddProduct] = useState(false);
@@ -94,6 +122,42 @@ export const AdminPortalPage = ({ onNavigateHome }) => {
       });
       const dataOrders = await resOrders.json();
       if (dataOrders.success) setOrders(dataOrders.orders);
+
+      // 4. Users List
+      try {
+        const resUsers = await fetch('/api/dashboard/users', {
+          headers: { Authorization: `Bearer ${user.token}` },
+        });
+        const dataUsers = await resUsers.json();
+        if (dataUsers.success) setUsersList(dataUsers.users || []);
+      } catch {}
+
+      // 5. Coupons
+      try {
+        const resCoupons = await fetch('/api/coupons', {
+          headers: { Authorization: `Bearer ${user.token}` },
+        });
+        const dataCoupons = await resCoupons.json();
+        if (dataCoupons.success) setCouponsList(dataCoupons.coupons || []);
+      } catch {}
+
+      // 6. Inventory Data
+      try {
+        const resInv = await fetch('/api/dashboard/inventory', {
+          headers: { Authorization: `Bearer ${user.token}` },
+        });
+        const dataInv = await resInv.json();
+        if (dataInv.success) setInventoryData(dataInv);
+      } catch {}
+
+      // 7. Support Tickets
+      try {
+        const resTickets = await fetch('/api/support/tickets', {
+          headers: { Authorization: `Bearer ${user.token}` },
+        });
+        const dataTickets = await resTickets.json();
+        if (dataTickets.success) setTicketsList(dataTickets.tickets || []);
+      } catch {}
     } catch (err) {
       addToast(err.message, 'error');
     } finally {
@@ -441,6 +505,129 @@ export const AdminPortalPage = ({ onNavigateHome }) => {
     }
   };
 
+  const handleToggleUserBan = async (userId) => {
+    try {
+      const res = await fetch(`/api/dashboard/users/${userId}/ban`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${user.token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      addToast(data.message, 'success');
+      fetchData();
+    } catch (err) {
+      addToast(err.message, 'error');
+    }
+  };
+
+  const handleResetUserPassword = async (userId) => {
+    const newPass = prompt('Nhập mật khẩu mới cho người dùng (tối thiểu 6 ký tự):', 'User@123456');
+    if (!newPass || newPass.length < 6) return;
+    try {
+      const res = await fetch(`/api/dashboard/users/${userId}/reset-password`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${user.token}`,
+        },
+        body: JSON.stringify({ newPassword: newPass }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      addToast(data.message, 'success');
+    } catch (err) {
+      addToast(err.message, 'error');
+    }
+  };
+
+  const handleCreateCoupon = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('/api/coupons', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${user.token}`,
+        },
+        body: JSON.stringify(couponForm),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      addToast('Tạo Voucher / Coupon thành công!', 'success');
+      setShowAddCoupon(false);
+      setCouponForm({
+        code: '',
+        discountType: 'percent',
+        discountValue: 20,
+        minOrderAmount: 200000,
+        maxDiscountAmount: 100000,
+        usageLimit: 100,
+        perUserLimit: 1,
+        expiresAt: '',
+      });
+      fetchData();
+    } catch (err) {
+      addToast(err.message, 'error');
+    }
+  };
+
+  const handleToggleCoupon = async (couponId) => {
+    try {
+      const res = await fetch(`/api/coupons/${couponId}/toggle`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${user.token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      addToast(data.message, 'success');
+      fetchData();
+    } catch (err) {
+      addToast(err.message, 'error');
+    }
+  };
+
+  const handleDeleteCoupon = async (couponId) => {
+    if (!confirm('Bạn có chắc chắn muốn xóa mã giảm giá này?')) return;
+    try {
+      const res = await fetch(`/api/coupons/${couponId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${user.token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      addToast('Đã xóa mã coupon', 'info');
+      fetchData();
+    } catch (err) {
+      addToast(err.message, 'error');
+    }
+  };
+
+  const handleReplyTicket = async (e) => {
+    e.preventDefault();
+    if (!selectedTicket || !ticketReplyText.trim()) return;
+    try {
+      const res = await fetch(`/api/support/tickets/${selectedTicket._id}/reply`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${user.token}`,
+        },
+        body: JSON.stringify({
+          status: 'Resolved',
+          replyMessage: ticketReplyText.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      addToast('Đã gửi phản hồi và cập nhật trạng thái Ticket!', 'success');
+      setSelectedTicket(null);
+      setTicketReplyText('');
+      fetchData();
+    } catch (err) {
+      addToast(err.message, 'error');
+    }
+  };
+
   // Filtered products
   const filteredProducts = products.filter(
     (p) =>
@@ -676,6 +863,157 @@ export const AdminPortalPage = ({ onNavigateHome }) => {
             >
               {orders.length}
             </span>
+          </button>
+
+          {/* Quản lý khách hàng */}
+          <button
+            onClick={() => setActiveTab('customers')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              padding: '12px 14px',
+              borderRadius: '10px',
+              background: activeTab === 'customers' ? 'rgba(250, 204, 21, 0.15)' : 'transparent',
+              color: activeTab === 'customers' ? '#facc15' : '#cbd5e1',
+              border: activeTab === 'customers' ? '1px solid rgba(250, 204, 21, 0.4)' : '1px solid transparent',
+              fontWeight: 700,
+              fontSize: '0.88rem',
+              cursor: 'pointer',
+              textAlign: 'left',
+              width: '100%',
+              transition: 'all 0.2s',
+            }}
+          >
+            <Users size={18} />
+            <span>Khách Hàng</span>
+            <span
+              style={{
+                marginLeft: 'auto',
+                fontSize: '0.72rem',
+                background: 'rgba(255, 255, 255, 0.08)',
+                padding: '2px 8px',
+                borderRadius: '9999px',
+                color: '#fff',
+              }}
+            >
+              {usersList.length}
+            </span>
+          </button>
+
+          {/* Quản lý Coupon */}
+          <button
+            onClick={() => setActiveTab('coupons')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              padding: '12px 14px',
+              borderRadius: '10px',
+              background: activeTab === 'coupons' ? 'rgba(250, 204, 21, 0.15)' : 'transparent',
+              color: activeTab === 'coupons' ? '#facc15' : '#cbd5e1',
+              border: activeTab === 'coupons' ? '1px solid rgba(250, 204, 21, 0.4)' : '1px solid transparent',
+              fontWeight: 700,
+              fontSize: '0.88rem',
+              cursor: 'pointer',
+              textAlign: 'left',
+              width: '100%',
+              transition: 'all 0.2s',
+            }}
+          >
+            <Ticket size={18} />
+            <span>Mã Giảm Giá / Coupon</span>
+            <span
+              style={{
+                marginLeft: 'auto',
+                fontSize: '0.72rem',
+                background: 'rgba(255, 255, 255, 0.08)',
+                padding: '2px 8px',
+                borderRadius: '9999px',
+                color: '#fff',
+              }}
+            >
+              {couponsList.length}
+            </span>
+          </button>
+
+          {/* Quản lý kho hàng & Hết hàng */}
+          <button
+            onClick={() => setActiveTab('inventory')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              padding: '12px 14px',
+              borderRadius: '10px',
+              background: activeTab === 'inventory' ? 'rgba(250, 204, 21, 0.15)' : 'transparent',
+              color: activeTab === 'inventory' ? '#facc15' : '#cbd5e1',
+              border: activeTab === 'inventory' ? '1px solid rgba(250, 204, 21, 0.4)' : '1px solid transparent',
+              fontWeight: 700,
+              fontSize: '0.88rem',
+              cursor: 'pointer',
+              textAlign: 'left',
+              width: '100%',
+              transition: 'all 0.2s',
+            }}
+          >
+            <AlertTriangle size={18} color={inventoryData?.lowStockItems?.length > 0 ? '#facc15' : 'currentColor'} />
+            <span>Kho Hàng & Cảnh Báo</span>
+            {(inventoryData?.summary?.lowStockCount > 0 || inventoryData?.summary?.outOfStockCount > 0) && (
+              <span
+                style={{
+                  marginLeft: 'auto',
+                  fontSize: '0.72rem',
+                  background: 'rgba(239, 68, 68, 0.25)',
+                  border: '1px solid #ef4444',
+                  padding: '2px 8px',
+                  borderRadius: '9999px',
+                  color: '#f87171',
+                  fontWeight: 800,
+                }}
+              >
+                !
+              </span>
+            )}
+          </button>
+
+          {/* Hỗ trợ & Ticket */}
+          <button
+            onClick={() => setActiveTab('tickets')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              padding: '12px 14px',
+              borderRadius: '10px',
+              background: activeTab === 'tickets' ? 'rgba(250, 204, 21, 0.15)' : 'transparent',
+              color: activeTab === 'tickets' ? '#facc15' : '#cbd5e1',
+              border: activeTab === 'tickets' ? '1px solid rgba(250, 204, 21, 0.4)' : '1px solid transparent',
+              fontWeight: 700,
+              fontSize: '0.88rem',
+              cursor: 'pointer',
+              textAlign: 'left',
+              width: '100%',
+              transition: 'all 0.2s',
+            }}
+          >
+            <HelpCircle size={18} />
+            <span>Hỗ Trợ & Ticket CSKH</span>
+            {ticketsList.filter((t) => t.status === 'Pending').length > 0 && (
+              <span
+                style={{
+                  marginLeft: 'auto',
+                  fontSize: '0.72rem',
+                  background: '#facc15',
+                  color: '#000',
+                  padding: '2px 8px',
+                  borderRadius: '9999px',
+                  fontWeight: 800,
+                }}
+              >
+                {ticketsList.filter((t) => t.status === 'Pending').length}
+              </span>
+            )}
           </button>
 
           <button
@@ -1581,8 +1919,29 @@ export const AdminPortalPage = ({ onNavigateHome }) => {
                           <option value="Processing">Đang đóng gói (Processing)</option>
                           <option value="Shipping">Đang giao hàng (Shipping)</option>
                           <option value="Delivered">Đã giao thành công (Delivered)</option>
-                          <option value="Cancelled">Đã hủy (Cancelled)</option>
+                          <option value="Cancelled">Đã hủy (Cancelled - Hoàn kho & voucher)</option>
+                          <option value="Refunded">Đã hoàn tiền (Refunded)</option>
                         </select>
+
+                        <button
+                          onClick={() => setSelectedInvoiceOrder(ord)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            background: 'rgba(255, 255, 255, 0.08)',
+                            border: '1px solid rgba(255, 255, 255, 0.15)',
+                            color: '#cbd5e1',
+                            padding: '6px 12px',
+                            borderRadius: '8px',
+                            fontSize: '0.8rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <Printer size={14} />
+                          <span>In Hóa Đơn</span>
+                        </button>
                       </div>
                     </div>
 
@@ -1683,23 +2042,835 @@ export const AdminPortalPage = ({ onNavigateHome }) => {
                   </ul>
                 </div>
 
-                <div style={{ background: '#12141c', border: '1px solid rgba(250, 204, 21, 0.35)', borderRadius: '16px', padding: '24px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#facc15', fontWeight: 800, fontSize: '1.1rem', marginBottom: '14px' }}>
-                    <Lock size={22} />
-                    <span>Bảo Mật Cơ Sở Dữ Liệu & Backend</span>
-                  </div>
-                  <ul style={{ fontSize: '0.86rem', color: '#cbd5e1', lineHeight: '1.8', marginLeft: '18px' }}>
-                    <li><strong>MongoDB Atlas:</strong> Kết nối qua giao thức bảo mật mã hóa SSL/TLS trên đám mây.</li>
-                    <li><strong>Đường dẫn /admin (Stealth Mode):</strong> Kiểm tra nghiêm ngặt <em>Role: 'admin'</em>. Nếu không phải admin, website tự động hiển thị trang <strong>404 Không tìm thấy trang</strong>, hoàn toàn tàng hình trước hacker và công cụ quét.</li>
-                    <li><strong>Cổng Backend /admin-portal:</strong> Tàng hình dưới mã phản hồi HTTP 404 đối với mọi người ngoài hoặc scanner. Chỉ mở khi có đúng khóa bí mật <code>key=aura_hoangphuc_secure_admin_2026</code>.</li>
-                    <li><strong>Tường lửa Honeypot & Anti-Fuzzing:</strong> Tự động bẫy và khóa IP (Auto-Ban IP) vĩnh viễn với bất kỳ bot/scanner nào (Gobuster, ffuf, Nikto, sqlmap...) dò tìm các file nhạy cảm (.env, .git, wp-admin, phpmyadmin...) hoặc dò quá 8 URL sai trong 30 giây.</li>
-                  </ul>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 5: CUSTOMER MANAGEMENT */}
+          {activeTab === 'customers' && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '14px' }}>
+                <div>
+                  <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: 800 }}>
+                    Quản Lý Khách Hàng ({usersList.length} tài khoản)
+                  </h2>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                    Theo dõi hoạt động, tổng chi tiêu, lịch sử đơn hàng và phân quyền tài khoản khách hàng.
+                  </p>
                 </div>
+
+                <div style={{ position: 'relative', width: '280px' }}>
+                  <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                  <input
+                    type="text"
+                    value={userSearch}
+                    onChange={(e) => setUserSearch(e.target.value)}
+                    placeholder="Tìm theo tên, email, sđt..."
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px 9px 36px',
+                      background: '#12141c',
+                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                      borderRadius: '8px',
+                      color: '#fff',
+                      fontSize: '0.84rem',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {usersList
+                  .filter(
+                    (u) =>
+                      u.name?.toLowerCase().includes(userSearch.toLowerCase()) ||
+                      u.email?.toLowerCase().includes(userSearch.toLowerCase()) ||
+                      u.phone?.toLowerCase().includes(userSearch.toLowerCase())
+                  )
+                  .map((usr) => (
+                    <div
+                      key={usr._id}
+                      style={{
+                        background: '#12141c',
+                        border: usr.isBanned ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid rgba(255, 255, 255, 0.08)',
+                        borderRadius: '14px',
+                        padding: '16px 20px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: '14px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                        <img
+                          src={usr.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80'}
+                          alt={usr.name}
+                          style={{ width: '44px', height: '44px', borderRadius: '50%', objectFit: 'cover' }}
+                        />
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <strong style={{ fontSize: '0.94rem', color: '#fff' }}>{usr.name}</strong>
+                            <span
+                              style={{
+                                background: usr.role === 'admin' ? 'rgba(250, 204, 21, 0.15)' : 'rgba(255, 255, 255, 0.08)',
+                                color: usr.role === 'admin' ? '#facc15' : '#cbd5e1',
+                                fontSize: '0.7rem',
+                                fontWeight: 700,
+                                padding: '2px 8px',
+                                borderRadius: '4px',
+                              }}
+                            >
+                              {usr.role === 'admin' ? 'ADMIN' : 'KHÁCH HÀNG'}
+                            </span>
+                            {usr.isBanned && (
+                              <span style={{ background: 'rgba(239, 68, 68, 0.2)', color: '#f87171', fontSize: '0.68rem', fontWeight: 800, padding: '2px 8px', borderRadius: '4px' }}>
+                                BỊ KHÓA
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '2px' }}>
+                            {usr.email} • SĐT: {usr.phone || 'Chưa cập nhật'} • Đăng ký: {new Date(usr.createdAt).toLocaleDateString('vi-VN')}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Đơn hàng / Chi tiêu:</div>
+                          <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#facc15' }}>
+                            {usr.orderCount || 0} đơn • {(usr.totalSpent || 0).toLocaleString('vi-VN')}₫
+                          </div>
+                        </div>
+
+                        {usr.role !== 'admin' && (
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                              onClick={() => handleResetUserPassword(usr._id)}
+                              title="Đặt lại mật khẩu mới cho khách hàng"
+                              style={{
+                                background: 'rgba(255, 255, 255, 0.08)',
+                                border: '1px solid rgba(255, 255, 255, 0.15)',
+                                color: '#cbd5e1',
+                                padding: '7px 12px',
+                                borderRadius: '8px',
+                                fontSize: '0.78rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                              }}
+                            >
+                              <KeyRound size={14} />
+                              <span>Reset MK</span>
+                            </button>
+
+                            <button
+                              onClick={() => handleToggleUserBan(usr._id)}
+                              style={{
+                                background: usr.isBanned ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                                border: usr.isBanned ? '1px solid #10b981' : '1px solid rgba(239, 68, 68, 0.4)',
+                                color: usr.isBanned ? '#34d399' : '#f87171',
+                                padding: '7px 12px',
+                                borderRadius: '8px',
+                                fontSize: '0.78rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                              }}
+                            >
+                              <Ban size={14} />
+                              <span>{usr.isBanned ? 'Mở Khóa' : 'Khóa Nick'}</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 6: COUPON MANAGEMENT */}
+          {activeTab === 'coupons' && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                <div>
+                  <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: 800 }}>
+                    Quản Lý Mã Giảm Giá & Voucher ({couponsList.length} mã)
+                  </h2>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                    Tạo mã khuyến mãi %, giảm tiền mặt, miễn phí vận chuyển và kiểm soát hạn sử dụng.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => setShowAddCoupon(!showAddCoupon)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    background: '#facc15',
+                    color: '#000',
+                    border: 'none',
+                    padding: '10px 18px',
+                    borderRadius: '10px',
+                    fontWeight: 700,
+                    fontSize: '0.86rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Plus size={16} />
+                  <span>{showAddCoupon ? 'Đóng Form' : 'Tạo Coupon Mới'}</span>
+                </button>
+              </div>
+
+              {/* Add Coupon Form */}
+              {showAddCoupon && (
+                <div style={{ background: '#12141c', border: '1px solid rgba(250, 204, 21, 0.3)', borderRadius: '16px', padding: '24px', marginBottom: '24px' }}>
+                  <h4 style={{ margin: '0 0 16px', fontSize: '1rem', fontWeight: 800, color: '#facc15' }}>
+                    Thêm Mã Giảm Giá Mới
+                  </h4>
+                  <form onSubmit={handleCreateCoupon} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', color: '#94a3b8', marginBottom: '4px' }}>Mã Code (In hoa) *</label>
+                      <input
+                        type="text"
+                        required
+                        value={couponForm.code}
+                        onChange={(e) => setCouponForm({ ...couponForm, code: e.target.value.toUpperCase() })}
+                        placeholder="VD: VIP2026"
+                        style={{ width: '100%', padding: '9px 12px', background: '#1a1d29', border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '8px', color: '#fff', fontSize: '0.85rem', fontWeight: 700 }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', color: '#94a3b8', marginBottom: '4px' }}>Loại giảm *</label>
+                      <select
+                        value={couponForm.discountType}
+                        onChange={(e) => setCouponForm({ ...couponForm, discountType: e.target.value })}
+                        style={{ width: '100%', padding: '9px 12px', background: '#1a1d29', border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '8px', color: '#fff', fontSize: '0.85rem' }}
+                      >
+                        <option value="percent">Phần trăm (%)</option>
+                        <option value="fixed">Số tiền cố định (₫)</option>
+                        <option value="freeship">Miễn phí vận chuyển (Freeship)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', color: '#94a3b8', marginBottom: '4px' }}>Giá trị giảm *</label>
+                      <input
+                        type="number"
+                        required
+                        value={couponForm.discountValue}
+                        onChange={(e) => setCouponForm({ ...couponForm, discountValue: Number(e.target.value) })}
+                        placeholder="VD: 20 (cho 20%)"
+                        style={{ width: '100%', padding: '9px 12px', background: '#1a1d29', border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '8px', color: '#fff', fontSize: '0.85rem' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', color: '#94a3b8', marginBottom: '4px' }}>Đơn tối thiểu (₫)</label>
+                      <input
+                        type="number"
+                        value={couponForm.minOrderAmount}
+                        onChange={(e) => setCouponForm({ ...couponForm, minOrderAmount: Number(e.target.value) })}
+                        style={{ width: '100%', padding: '9px 12px', background: '#1a1d29', border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '8px', color: '#fff', fontSize: '0.85rem' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', color: '#94a3b8', marginBottom: '4px' }}>Giảm tối đa (₫)</label>
+                      <input
+                        type="number"
+                        value={couponForm.maxDiscountAmount}
+                        onChange={(e) => setCouponForm({ ...couponForm, maxDiscountAmount: Number(e.target.value) })}
+                        style={{ width: '100%', padding: '9px 12px', background: '#1a1d29', border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '8px', color: '#fff', fontSize: '0.85rem' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', color: '#94a3b8', marginBottom: '4px' }}>Số lượt dùng tối đa</label>
+                      <input
+                        type="number"
+                        value={couponForm.usageLimit}
+                        onChange={(e) => setCouponForm({ ...couponForm, usageLimit: Number(e.target.value) })}
+                        style={{ width: '100%', padding: '9px 12px', background: '#1a1d29', border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '8px', color: '#fff', fontSize: '0.85rem' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', color: '#94a3b8', marginBottom: '4px' }}>Hạn sử dụng</label>
+                      <input
+                        type="date"
+                        value={couponForm.expiresAt}
+                        onChange={(e) => setCouponForm({ ...couponForm, expiresAt: e.target.value })}
+                        style={{ width: '100%', padding: '9px 12px', background: '#1a1d29', border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '8px', color: '#fff', fontSize: '0.85rem' }}
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                      <button
+                        type="submit"
+                        style={{
+                          width: '100%',
+                          padding: '11px',
+                          background: '#facc15',
+                          color: '#000',
+                          border: 'none',
+                          borderRadius: '8px',
+                          fontWeight: 700,
+                          fontSize: '0.85rem',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Lưu Mã Vào Database
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              {/* Coupons List */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
+                {couponsList.map((c) => (
+                  <div
+                    key={c._id}
+                    style={{
+                      background: '#12141c',
+                      border: c.isActive ? '1px solid rgba(250, 204, 21, 0.3)' : '1px solid rgba(255, 255, 255, 0.08)',
+                      borderRadius: '16px',
+                      padding: '18px 20px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <span style={{ background: '#facc15', color: '#000', padding: '4px 10px', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 800 }}>
+                          {c.code}
+                        </span>
+                        <span style={{ fontSize: '0.74rem', color: c.isActive ? '#10b981' : '#f87171', fontWeight: 700 }}>
+                          ● {c.isActive ? 'Đang kích hoạt' : 'Tạm tắt'}
+                        </span>
+                      </div>
+
+                      <h4 style={{ margin: '8px 0 4px', fontSize: '1rem', color: '#fff' }}>
+                        {c.discountType === 'percent'
+                          ? `Giảm ${c.discountValue}%`
+                          : c.discountType === 'freeship'
+                          ? 'Miễn phí vận chuyển'
+                          : `Giảm ${c.discountValue?.toLocaleString('vi-VN')}₫`}
+                      </h4>
+                      <p style={{ margin: '0 0 6px', fontSize: '0.78rem', color: '#94a3b8' }}>
+                        Đơn tối thiểu: {c.minOrderAmount?.toLocaleString('vi-VN')}₫
+                        {c.maxDiscountAmount ? ` • Tối đa: ${c.maxDiscountAmount?.toLocaleString('vi-VN')}₫` : ''}
+                      </p>
+                      <p style={{ margin: 0, fontSize: '0.75rem', color: '#64748b' }}>
+                        Đã dùng: <strong>{c.usedCount || 0}</strong> / {c.usageLimit || '∞'} lượt
+                      </p>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '16px', borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: '12px' }}>
+                      <button
+                        onClick={() => handleToggleCoupon(c._id)}
+                        style={{
+                          flex: 1,
+                          padding: '7px',
+                          borderRadius: '6px',
+                          border: '1px solid rgba(255, 255, 255, 0.15)',
+                          background: 'rgba(255, 255, 255, 0.05)',
+                          color: '#fff',
+                          fontSize: '0.76rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {c.isActive ? 'Tạm tắt' : 'Kích hoạt'}
+                      </button>
+
+                      <button
+                        onClick={() => handleDeleteCoupon(c._id)}
+                        style={{
+                          padding: '7px 12px',
+                          borderRadius: '6px',
+                          border: '1px solid rgba(239, 68, 68, 0.3)',
+                          background: 'rgba(239, 68, 68, 0.1)',
+                          color: '#f87171',
+                          fontSize: '0.76rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Xóa
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 7: INVENTORY MANAGEMENT & LOW STOCK */}
+          {activeTab === 'inventory' && (
+            <div>
+              <div style={{ marginBottom: '24px' }}>
+                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: 800 }}>
+                  Quản Lý Kho Hàng & Cảnh Báo Sắp Hết Hàng
+                </h2>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                  Hệ thống tự động theo dõi số lượng tồn kho thực tế trong MongoDB Atlas và cảnh báo khi sản phẩm còn ít hơn 5 chiếc.
+                </p>
+              </div>
+
+              {/* Warning Banner if Low Stock exists */}
+              {inventoryData?.lowStockItems?.length > 0 && (
+                <div
+                  style={{
+                    background: 'rgba(245, 158, 11, 0.12)',
+                    border: '1px solid #f59e0b',
+                    borderRadius: '14px',
+                    padding: '16px 20px',
+                    marginBottom: '24px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                  }}
+                >
+                  <AlertTriangle size={24} color="#f59e0b" />
+                  <div>
+                    <strong style={{ fontSize: '0.92rem', color: '#facc15' }}>
+                      CẢNH BÁO KHO: Có {inventoryData.lowStockItems.length} sản phẩm sắp hết hàng (tồn kho ≤ 5)!
+                    </strong>
+                    <div style={{ fontSize: '0.8rem', color: '#e2e8f0', marginTop: '2px' }}>
+                      Ví dụ: <strong>{inventoryData.lowStockItems[0]?.name}</strong> chỉ còn {inventoryData.lowStockItems[0]?.stockQuantity || 3} sản phẩm. Cần bổ sung nguồn cung cấp!
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Inventory Summary Stats */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+                <div style={{ background: '#12141c', border: '1px solid rgba(255, 255, 255, 0.08)', padding: '18px', borderRadius: '14px' }}>
+                  <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>TỔNG SẢN PHẨM</div>
+                  <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#fff', marginTop: '4px' }}>
+                    {inventoryData?.summary?.totalProducts || products.length}
+                  </div>
+                </div>
+
+                <div style={{ background: '#12141c', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '18px', borderRadius: '14px' }}>
+                  <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>CÒN HÀNG DỒI DÀO (&gt; 5)</div>
+                  <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#10b981', marginTop: '4px' }}>
+                    {inventoryData?.summary?.healthyCount || 0}
+                  </div>
+                </div>
+
+                <div style={{ background: '#12141c', border: '1px solid rgba(245, 158, 11, 0.4)', padding: '18px', borderRadius: '14px' }}>
+                  <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>SẮP HẾT HÀNG (≤5)</div>
+                  <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#f59e0b', marginTop: '4px' }}>
+                    {inventoryData?.summary?.lowStockCount || 0}
+                  </div>
+                </div>
+
+                <div style={{ background: '#12141c', border: '1px solid rgba(239, 68, 68, 0.35)', padding: '18px', borderRadius: '14px' }}>
+                  <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>ĐÃ HẾT HÀNG (0)</div>
+                  <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#ef4444', marginTop: '4px' }}>
+                    {inventoryData?.summary?.outOfStockCount || 0}
+                  </div>
+                </div>
+              </div>
+
+              {/* Product Stock Table */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {products.map((p) => {
+                  const stock = p.stockQuantity ?? 50;
+                  const isLow = stock <= 5 && stock > 0;
+                  const isOut = stock === 0;
+
+                  return (
+                    <div
+                      key={p._id}
+                      style={{
+                        background: '#12141c',
+                        border: isOut
+                          ? '1px solid rgba(239, 68, 68, 0.3)'
+                          : isLow
+                          ? '1px solid rgba(245, 158, 11, 0.3)'
+                          : '1px solid rgba(255, 255, 255, 0.06)',
+                        borderRadius: '12px',
+                        padding: '14px 20px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                        <img
+                          src={p.images?.[0]}
+                          alt={p.name}
+                          style={{ width: '44px', height: '54px', borderRadius: '6px', objectFit: 'cover' }}
+                        />
+                        <div>
+                          <strong style={{ fontSize: '0.9rem', color: '#fff' }}>{p.name}</strong>
+                          <div style={{ fontSize: '0.76rem', color: '#94a3b8' }}>{p.category} • {p.price?.toLocaleString('vi-VN')}₫</div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                        <span
+                          style={{
+                            background: isOut
+                              ? 'rgba(239, 68, 68, 0.2)'
+                              : isLow
+                              ? 'rgba(245, 158, 11, 0.2)'
+                              : 'rgba(16, 185, 129, 0.15)',
+                            color: isOut ? '#f87171' : isLow ? '#fbbf24' : '#34d399',
+                            fontSize: '0.78rem',
+                            fontWeight: 800,
+                            padding: '4px 10px',
+                            borderRadius: '6px',
+                          }}
+                        >
+                          Tồn kho: {stock} cái
+                        </span>
+
+                        <button
+                          onClick={() => handleToggleStock(p)}
+                          style={{
+                            background: 'rgba(255, 255, 255, 0.08)',
+                            border: '1px solid rgba(255, 255, 255, 0.15)',
+                            color: '#cbd5e1',
+                            padding: '6px 12px',
+                            borderRadius: '6px',
+                            fontSize: '0.76rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {isOut ? 'Nhập thêm 50 cái' : 'Đánh dấu hết hàng'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 8: SUPPORT DESK & TICKETS */}
+          {activeTab === 'tickets' && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                <div>
+                  <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: 800 }}>
+                    Hỗ Trợ Khách Hàng & Ticket CSKH ({ticketsList.length} yêu cầu)
+                  </h2>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                    Phản hồi các khiếu nại, yêu cầu đổi size, hoàn tiền hoặc tư vấn từ khách hàng.
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {['All', 'Pending', 'In Progress', 'Resolved'].map((st) => (
+                    <button
+                      key={st}
+                      onClick={() => setTicketFilter(st)}
+                      style={{
+                        padding: '7px 14px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: ticketFilter === st ? '#facc15' : 'rgba(255, 255, 255, 0.06)',
+                        color: ticketFilter === st ? '#000' : '#94a3b8',
+                        fontSize: '0.8rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {st === 'All' ? 'Tất cả' : st === 'Pending' ? 'Chờ xử lý' : st === 'In Progress' ? 'Đang xử lý' : 'Đã giải quyết'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tickets List */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {ticketsList
+                  .filter((t) => ticketFilter === 'All' || t.status === ticketFilter)
+                  .map((t) => (
+                    <div
+                      key={t._id}
+                      style={{
+                        background: '#12141c',
+                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                        borderRadius: '16px',
+                        padding: '18px 22px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                        <div>
+                          <strong style={{ fontSize: '0.95rem', color: '#facc15' }}>#{t.ticketCode}</strong>
+                          <span style={{ fontSize: '0.8rem', color: '#94a3b8', marginLeft: '10px' }}>
+                            {t.name} ({t.email}) • {new Date(t.createdAt).toLocaleString('vi-VN')}
+                          </span>
+                        </div>
+
+                        <span
+                          style={{
+                            background:
+                              t.status === 'Resolved'
+                                ? 'rgba(16, 185, 129, 0.15)'
+                                : t.status === 'In Progress'
+                                ? 'rgba(59, 130, 246, 0.15)'
+                                : 'rgba(234, 179, 8, 0.15)',
+                            color:
+                              t.status === 'Resolved'
+                                ? '#34d399'
+                                : t.status === 'In Progress'
+                                ? '#60a5fa'
+                                : '#facc15',
+                            padding: '3px 10px',
+                            borderRadius: '9999px',
+                            fontSize: '0.74rem',
+                            fontWeight: 700,
+                          }}
+                        >
+                          {t.status === 'Resolved' ? 'Đã giải quyết' : t.status === 'In Progress' ? 'Đang xử lý' : 'Chờ phản hồi'}
+                        </span>
+                      </div>
+
+                      <h4 style={{ margin: '0 0 6px', fontSize: '0.95rem', color: '#fff' }}>
+                        [{t.category}] {t.subject}
+                      </h4>
+                      <p style={{ margin: '0 0 14px', fontSize: '0.84rem', color: '#cbd5e1', lineHeight: 1.5 }}>
+                        {t.message}
+                      </p>
+
+                      {/* Reply Box */}
+                      {selectedTicket?._id === t._id ? (
+                        <form onSubmit={handleReplyTicket} style={{ marginTop: '12px', background: 'rgba(255, 255, 255, 0.03)', padding: '14px', borderRadius: '10px' }}>
+                          <label style={{ display: 'block', fontSize: '0.78rem', color: '#facc15', fontWeight: 700, marginBottom: '6px' }}>
+                            Nội dung phản hồi khách hàng:
+                          </label>
+                          <textarea
+                            rows={3}
+                            required
+                            value={ticketReplyText}
+                            onChange={(e) => setTicketReplyText(e.target.value)}
+                            placeholder="Nhập câu trả lời từ đội ngũ CSKH..."
+                            style={{
+                              width: '100%',
+                              padding: '10px',
+                              background: '#1a1d29',
+                              border: '1px solid rgba(255, 255, 255, 0.15)',
+                              borderRadius: '8px',
+                              color: '#fff',
+                              fontSize: '0.84rem',
+                              marginBottom: '10px',
+                            }}
+                          />
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                              type="submit"
+                              style={{
+                                background: '#10b981',
+                                color: '#000',
+                                border: 'none',
+                                padding: '8px 16px',
+                                borderRadius: '6px',
+                                fontWeight: 700,
+                                fontSize: '0.8rem',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Gửi Phản Hồi & Đóng Ticket
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedTicket(null)}
+                              style={{
+                                background: 'transparent',
+                                border: '1px solid rgba(255, 255, 255, 0.15)',
+                                color: '#94a3b8',
+                                padding: '8px 14px',
+                                borderRadius: '6px',
+                                fontSize: '0.8rem',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Hủy
+                            </button>
+                          </div>
+                        </form>
+                      ) : (
+                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                          <button
+                            onClick={() => {
+                              setSelectedTicket(t);
+                              setTicketReplyText('');
+                            }}
+                            style={{
+                              background: 'rgba(250, 204, 21, 0.15)',
+                              border: '1px solid rgba(250, 204, 21, 0.3)',
+                              color: '#facc15',
+                              padding: '6px 14px',
+                              borderRadius: '6px',
+                              fontSize: '0.78rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Viết Phản Hồi CSKH
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
               </div>
             </div>
           )}
         </main>
       </div>
+
+      {/* PRINT INVOICE MODAL */}
+      {selectedInvoiceOrder && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            background: 'rgba(0, 0, 0, 0.85)',
+            backdropFilter: 'blur(10px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+          }}
+          onClick={(e) => e.target === e.currentTarget && setSelectedInvoiceOrder(null)}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '680px',
+              background: '#ffffff',
+              color: '#0f172a',
+              borderRadius: '20px',
+              padding: '36px',
+              boxShadow: '0 25px 50px rgba(0, 0, 0, 0.5)',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+          >
+            {/* Invoice Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #e2e8f0', paddingBottom: '20px', marginBottom: '24px' }}>
+              <div>
+                <h1 style={{ fontSize: '1.8rem', fontWeight: 900, margin: '0 0 4px', letterSpacing: '1px' }}>AURA STUDIO</h1>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b' }}>
+                  Streetwear Clothing Official Store • Hotline: 0901.234.567
+                </p>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b' }}>
+                  Địa chỉ: 123 Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP.HCM
+                </p>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: '0 0 4px', color: '#0f172a' }}>HÓA ĐƠN BÁN HÀNG</h2>
+                <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#f59e0b' }}>#{selectedInvoiceOrder.orderCode}</div>
+                <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                  Ngày: {new Date(selectedInvoiceOrder.createdAt).toLocaleDateString('vi-VN')}
+                </div>
+              </div>
+            </div>
+
+            {/* Customer Info */}
+            <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', marginBottom: '24px', fontSize: '0.86rem' }}>
+              <div style={{ fontWeight: 700, marginBottom: '6px', color: '#1e293b' }}>Thông tin khách hàng:</div>
+              <div>Họ tên: <strong>{selectedInvoiceOrder.shippingAddress?.fullName}</strong></div>
+              <div>Số điện thoại: {selectedInvoiceOrder.shippingAddress?.phone}</div>
+              <div>Địa chỉ: {selectedInvoiceOrder.shippingAddress?.address}, {selectedInvoiceOrder.shippingAddress?.city}</div>
+              <div>Phương thức thanh toán: <strong>{selectedInvoiceOrder.paymentMethod}</strong></div>
+            </div>
+
+            {/* Items Table */}
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '24px', fontSize: '0.85rem' }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #cbd5e1', textAlign: 'left' }}>
+                  <th style={{ padding: '8px 0' }}>Sản phẩm</th>
+                  <th style={{ padding: '8px 0', textAlign: 'center' }}>Phân loại</th>
+                  <th style={{ padding: '8px 0', textAlign: 'center' }}>SL</th>
+                  <th style={{ padding: '8px 0', textAlign: 'right' }}>Thành tiền</th>
+                </tr>
+              </thead>
+              <tbody>
+                {selectedInvoiceOrder.orderItems?.map((it, idx) => (
+                  <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                    <td style={{ padding: '10px 0', fontWeight: 600 }}>{it.name}</td>
+                    <td style={{ padding: '10px 0', textAlign: 'center', color: '#64748b' }}>{it.color} / {it.size}</td>
+                    <td style={{ padding: '10px 0', textAlign: 'center' }}>{it.quantity}</td>
+                    <td style={{ padding: '10px 0', textAlign: 'right', fontWeight: 700 }}>
+                      {(it.price * it.quantity).toLocaleString('vi-VN')}₫
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* Invoice Total */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px', fontSize: '0.9rem', marginBottom: '28px' }}>
+              <div>Tổng tiền hàng: <strong>{selectedInvoiceOrder.itemsPrice?.toLocaleString('vi-VN') || selectedInvoiceOrder.totalPrice?.toLocaleString('vi-VN')}₫</strong></div>
+              {selectedInvoiceOrder.discountAmount > 0 && (
+                <div style={{ color: '#ef4444' }}>
+                  Mã giảm giá ({selectedInvoiceOrder.couponCode}): -{selectedInvoiceOrder.discountAmount.toLocaleString('vi-VN')}₫
+                </div>
+              )}
+              <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#0f172a', borderTop: '2px solid #0f172a', paddingTop: '8px', marginTop: '4px' }}>
+                Tổng thanh toán: {selectedInvoiceOrder.totalPrice?.toLocaleString('vi-VN')}₫
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <button
+                onClick={() => setSelectedInvoiceOrder(null)}
+                style={{
+                  background: '#f1f5f9',
+                  border: 'none',
+                  padding: '10px 20px',
+                  borderRadius: '8px',
+                  fontWeight: 600,
+                  fontSize: '0.84rem',
+                  cursor: 'pointer',
+                  color: '#475569',
+                }}
+              >
+                Đóng
+              </button>
+
+              <button
+                onClick={() => window.print()}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  background: '#0f172a',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '10px 24px',
+                  borderRadius: '8px',
+                  fontWeight: 700,
+                  fontSize: '0.84rem',
+                  cursor: 'pointer',
+                }}
+              >
+                <Printer size={16} />
+                <span>In Hóa Đơn / Lưu PDF</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

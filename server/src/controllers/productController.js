@@ -1,4 +1,5 @@
 import Product from '../models/Product.js';
+import Order from '../models/Order.js';
 import { escapeRegex } from '../middleware/sanitize.js';
 
 export const getProducts = async (req, res) => {
@@ -266,11 +267,29 @@ export const deleteProduct = async (req, res) => {
  */
 export const addReview = async (req, res) => {
   try {
-    const { rating, comment } = req.body;
+    const { rating, comment, images } = req.body;
     const product = await Product.findById(req.params.id);
 
     if (!product) {
       return res.status(404).json({ success: false, message: 'Không tìm thấy sản phẩm' });
+    }
+
+    // 1. Strict Rule: User must have purchased this product AND order status must be 'Delivered'
+    const eligibleOrder = await Order.findOne({
+      $or: [
+        { user: req.user._id },
+        ...(req.user.phone ? [{ 'shippingAddress.phone': req.user.phone.trim() }] : []),
+        ...(req.user.email ? [{ 'shippingAddress.email': req.user.email.toLowerCase().trim() }] : []),
+      ],
+      'orderItems.product': req.params.id,
+      orderStatus: 'Delivered',
+    });
+
+    if (!eligibleOrder) {
+      return res.status(403).json({
+        success: false,
+        message: 'Bạn chỉ có thể đánh giá sản phẩm sau khi đã mua hàng và đơn hàng được giao thành công!',
+      });
     }
 
     const numRating = Number(rating);
@@ -283,12 +302,19 @@ export const addReview = async (req, res) => {
     }
 
     const alreadyReviewed = product.reviews.find(
-      (r) => r.user.toString() === req.user._id.toString()
+      (r) => r.user && r.user.toString() === req.user._id.toString()
     );
 
     if (alreadyReviewed) {
       return res.status(400).json({ success: false, message: 'Bạn đã đánh giá sản phẩm này rồi' });
     }
+
+    // Sanitize image URLs / base64
+    const validImages = Array.isArray(images)
+      ? images
+          .filter((img) => typeof img === 'string' && (img.startsWith('http') || img.startsWith('data:image')))
+          .slice(0, 5)
+      : [];
 
     const review = {
       user: req.user._id,
@@ -296,6 +322,7 @@ export const addReview = async (req, res) => {
       userAvatar: req.user.avatar || '',
       rating: numRating,
       comment: comment.trim(),
+      images: validImages,
     };
 
     product.reviews.push(review);
@@ -304,10 +331,53 @@ export const addReview = async (req, res) => {
       product.reviews.reduce((acc, item) => item.rating + acc, 0) / product.reviews.length;
 
     await product.save();
-    res.status(201).json({ success: true, message: 'Thêm đánh giá thành công' });
+    res.status(201).json({
+      success: true,
+      message: 'Thêm đánh giá thành công!',
+      rating: Number(product.rating.toFixed(1)),
+      numReviews: product.numReviews,
+      reviews: product.reviews,
+    });
   } catch (error) {
     console.error('addReview error:', error);
     res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * Check if the current logged-in user is eligible to review this product
+ * (Must have an order containing this product with status 'Delivered' and haven't reviewed yet)
+ */
+export const checkReviewEligibility = async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id);
+    if (!product) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy sản phẩm' });
+    }
+
+    const alreadyReviewed = product.reviews.some(
+      (r) => r.user && r.user.toString() === req.user._id.toString()
+    );
+
+    const eligibleOrder = await Order.findOne({
+      $or: [
+        { user: req.user._id },
+        ...(req.user.phone ? [{ 'shippingAddress.phone': req.user.phone.trim() }] : []),
+        ...(req.user.email ? [{ 'shippingAddress.email': req.user.email.toLowerCase().trim() }] : []),
+      ],
+      'orderItems.product': req.params.id,
+      orderStatus: 'Delivered',
+    });
+
+    res.json({
+      success: true,
+      canReview: Boolean(eligibleOrder && !alreadyReviewed),
+      alreadyReviewed,
+      hasDeliveredOrder: Boolean(eligibleOrder),
+    });
+  } catch (error) {
+    console.error('checkReviewEligibility error:', error);
+    res.status(500).json({ success: false, message: 'Lỗi kiểm tra quyền đánh giá' });
   }
 };
 

@@ -12,7 +12,7 @@
 
 ---
 
-## 📸 BỘ SƯU TẬP GIAO DIỆN HỆ THỐNG THỰC TẾ (TỪ A ĐẾN Z)
+## 📸 GIAO DIỆN HỆ THỐNG THỰC TẾ 
 
 Toàn bộ hình ảnh dưới đây được chụp trực tiếp từ hệ thống đang chạy thời gian thực với cơ sở dữ liệu MongoDB Atlas thực tế:
 

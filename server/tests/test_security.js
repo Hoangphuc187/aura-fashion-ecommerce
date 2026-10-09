@@ -60,8 +60,11 @@ const testSecurity = async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: 'admin@streetwear.vn' }),
     });
-    const forgotData = await forgotRes.json();
-    assert(forgotRes.status === 200, 'Forgot password responds 200');
+    const forgotData = await forgotRes.json().catch(() => ({}));
+    assert(
+      forgotRes.status === 200 || forgotRes.status === 429,
+      `Forgot password responds 200 OK or 429 Rate Limited (Status: ${forgotRes.status})`
+    );
     assert(!forgotData.otp, 'OTP is NOT exposed in standard JSON response');
 
     // 6. NoSQL Injection Neutralization

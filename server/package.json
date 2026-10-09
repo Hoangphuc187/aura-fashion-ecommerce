@@ -6,10 +6,11 @@
   "type": "module",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
+    "dev": "node --watch-path=src src/server.js",
     "seed": "node src/seed.js",
-    "test:realtime": "node src/test_realtime_and_worker.js",
-    "test:security": "node src/test_security.js"
+    "test": "node tests/test_security.js && node tests/test_realtime_and_worker.js",
+    "test:realtime": "node tests/test_realtime_and_worker.js",
+    "test:security": "node tests/test_security.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

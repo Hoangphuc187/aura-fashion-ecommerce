@@ -5,6 +5,7 @@ import { createMoMoPaymentUrl, verifyMoMoReturn } from '../services/momoService.
 import { sendOrderConfirmationEmail } from '../services/emailService.js';
 import { getClientIp } from '../middleware/securityShield.js';
 import { logSecurityEvent, SecurityEvent } from '../utils/auditLogger.js';
+import { sseService } from '../services/sseService.js';
 
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:3000';
 
@@ -131,6 +132,9 @@ export const vnpayReturn = async (req, res) => {
         amount,
       });
 
+      // Realtime notification to customer and admin
+      sseService.notifyOrderUpdate(orderCode, order);
+
       return res.redirect(`${CLIENT_URL}?paymentSuccess=true&orderCode=${orderCode}&method=VNPAY`);
     }
 
@@ -181,6 +185,9 @@ export const momoReturn = async (req, res) => {
         status: 'PAID',
         amount,
       });
+
+      // Realtime notification to customer and admin
+      sseService.notifyOrderUpdate(orderCode, order);
 
       return res.redirect(`${CLIENT_URL}?paymentSuccess=true&orderCode=${orderCode}&method=MOMO`);
     }

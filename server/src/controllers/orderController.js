@@ -4,6 +4,8 @@ import Coupon from '../models/Coupon.js';
 import User from '../models/User.js';
 import { logSecurityEvent, SecurityEvent } from '../utils/auditLogger.js';
 import { sendOrderConfirmationEmail } from '../services/emailService.js';
+import { sseService } from '../services/sseService.js';
+import { checkExpiredOrders } from '../services/orderExpiryWorker.js';
 
 /**
  * Create Order
@@ -208,6 +210,9 @@ export const createOrder = async (req, res) => {
       });
     }
 
+    // Broadcast new order event to Admin real-time stream
+    sseService.broadcastToAdmin('new_order', createdOrder);
+
     res.status(201).json({
       success: true,
       message: 'Đặt hàng thành công!',
@@ -375,6 +380,9 @@ export const updateOrderStatus = async (req, res) => {
       newStatus: orderStatus,
     });
 
+    // Notify real-time listeners (Customer watching tracking page + Admin dashboard)
+    sseService.notifyOrderUpdate(updatedOrder.orderCode, updatedOrder);
+
     res.json({
       success: true,
       message: 'Cập nhật trạng thái đơn hàng thành công',
@@ -439,6 +447,9 @@ export const customerCancelOrder = async (req, res) => {
 
     await order.save();
 
+    // Notify real-time tracking that order is cancelled
+    sseService.notifyOrderUpdate(order.orderCode, order);
+
     res.json({
       success: true,
       message: 'Hủy đơn hàng thành công! Mã giảm giá (nếu có) đã được hoàn lại vào tài khoản của bạn.',
@@ -501,5 +512,22 @@ export const applyCoupon = async (req, res) => {
   } catch (error) {
     console.error('applyCoupon error:', error);
     res.status(500).json({ success: false, message: 'Lỗi áp dụng mã khuyến mãi' });
+  }
+};
+
+/**
+ * Admin: Trigger manual expired order scan
+ */
+export const triggerManualExpiryCheck = async (req, res) => {
+  try {
+    const result = await checkExpiredOrders();
+    res.json({
+      success: true,
+      message: `Đã quét và xử lý ${result.count || 0} đơn hàng quá hạn thanh toán.`,
+      result,
+    });
+  } catch (error) {
+    console.error('triggerManualExpiryCheck error:', error);
+    res.status(500).json({ success: false, message: 'Lỗi quét đơn hàng quá hạn' });
   }
 };

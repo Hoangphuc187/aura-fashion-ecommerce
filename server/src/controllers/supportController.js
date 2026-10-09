@@ -1,4 +1,5 @@
 import Ticket from '../models/Ticket.js';
+import { sseService } from '../services/sseService.js';
 
 // Standard FAQ Data (Stored in backend & delivered dynamically)
 const FAQ_DATA = [
@@ -86,6 +87,9 @@ export const createTicket = async (req, res) => {
         },
       ],
     });
+
+    // Realtime notification to Admin portal
+    sseService.broadcastToAdmin('new_ticket', ticket);
 
     res.status(201).json({
       success: true,

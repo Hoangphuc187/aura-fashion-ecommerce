@@ -76,6 +76,10 @@ export const AdminPortalPage = ({ onNavigateHome }) => {
   const [reviewSearch, setReviewSearch] = useState('');
   const [reviewFilterRating, setReviewFilterRating] = useState('All');
 
+  // Real-time SSE Live Stream States
+  const [isLiveStreamConnected, setIsLiveStreamConnected] = useState(false);
+  const [triggeringExpiryScan, setTriggeringExpiryScan] = useState(false);
+
   // Add Product Form Toggle & State
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [productForm, setProductForm] = useState({
@@ -185,6 +189,116 @@ export const AdminPortalPage = ({ onNavigateHome }) => {
       fetchData();
     }
   }, [user]);
+
+  // Web Audio API Synthesizer for live sound chimes (Zero mp3 asset dependency)
+  const playLiveChime = () => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15); // A5
+      gain.gain.setValueAtTime(0.18, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.35);
+    } catch {}
+  };
+
+  // Real-time Admin Live Stream via Server-Sent Events (SSE)
+  useEffect(() => {
+    if (!user?.token || user?.role !== 'admin') return;
+
+    let eventSource;
+    try {
+      eventSource = new EventSource(`/api/realtime/admin?token=${encodeURIComponent(user.token)}`);
+
+      eventSource.onopen = () => {
+        setIsLiveStreamConnected(true);
+      };
+
+      eventSource.addEventListener('connected', () => {
+        setIsLiveStreamConnected(true);
+      });
+
+      // Live event: Customer placed a new order
+      eventSource.addEventListener('new_order', (e) => {
+        try {
+          const newOrder = JSON.parse(e.data);
+          if (newOrder && newOrder._id) {
+            playLiveChime();
+            addToast(`🔔 ĐƠN HÀNG MỚI: #${newOrder.orderCode} (${(newOrder.totalPrice || 0).toLocaleString('vi-VN')}₫) từ ${newOrder.shippingAddress?.fullName || 'Khách hàng'}!`, 'success');
+            setOrders((prev) => [newOrder, ...prev.filter((o) => o._id !== newOrder._id)]);
+            setStats((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    totalOrders: (prev.totalOrders || 0) + 1,
+                    todayRevenue: (prev.todayRevenue || 0) + (newOrder.totalPrice || 0),
+                    totalRevenue: (prev.totalRevenue || 0) + (newOrder.totalPrice || 0),
+                  }
+                : prev
+            );
+          }
+        } catch (err) {
+          console.error('Error handling new_order SSE:', err);
+        }
+      });
+
+      // Live event: Order status changed
+      eventSource.addEventListener('order_updated', (e) => {
+        try {
+          const payload = JSON.parse(e.data);
+          if (payload && payload.order) {
+            setOrders((prev) =>
+              prev.map((o) => (o._id === payload.order._id ? payload.order : o))
+            );
+          }
+        } catch (err) {}
+      });
+
+      // Live event: Expired order automatically cancelled and restocked
+      eventSource.addEventListener('order_expired', (e) => {
+        try {
+          const payload = JSON.parse(e.data);
+          if (payload && payload.orderCode) {
+            addToast(`⏳ Đơn hàng #${payload.orderCode} đã quá hạn 15 phút và tự động hủy (Đã hoàn tồn kho)!`, 'info');
+            setOrders((prev) =>
+              prev.map((o) => (o.orderCode === payload.orderCode ? { ...o, orderStatus: 'Cancelled' } : o))
+            );
+          }
+        } catch (err) {}
+      });
+
+      // Live event: Customer submitted a support ticket
+      eventSource.addEventListener('new_ticket', (e) => {
+        try {
+          const newTicket = JSON.parse(e.data);
+          if (newTicket && newTicket._id) {
+            playLiveChime();
+            addToast(`📩 Có Ticket hỗ trợ mới từ ${newTicket.name || 'Khách'}: #${newTicket.ticketCode}!`, 'info');
+            setTicketsList((prev) => [newTicket, ...prev.filter((t) => t._id !== newTicket._id)]);
+          }
+        } catch (err) {}
+      });
+
+      eventSource.onerror = () => {
+        setIsLiveStreamConnected(false);
+      };
+    } catch (err) {
+      console.error('Failed to init Admin SSE:', err);
+    }
+
+    return () => {
+      if (eventSource) {
+        eventSource.close();
+      }
+      setIsLiveStreamConnected(false);
+    };
+  }, [user?.token, user?.role, addToast]);
 
   // ==========================================
   // 1. CHẶN VÀ BLOCK NGAY NẾU KHÔNG PHẢI ADMIN
@@ -659,6 +773,24 @@ export const AdminPortalPage = ({ onNavigateHome }) => {
     }
   };
 
+  const handleTriggerExpiryScan = async () => {
+    setTriggeringExpiryScan(true);
+    try {
+      const res = await fetch('/api/orders/admin/trigger-expiry-check', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${user.token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Lỗi quét đơn hàng');
+      addToast(data.message || 'Đã hoàn tất quét đơn quá hạn!', 'success');
+      fetchData();
+    } catch (err) {
+      addToast(err.message, 'error');
+    } finally {
+      setTriggeringExpiryScan(false);
+    }
+  };
+
   // Filtered products
   const filteredProducts = products.filter(
     (p) =>
@@ -723,6 +855,35 @@ export const AdminPortalPage = ({ onNavigateHome }) => {
 
         {/* Header Right Actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {/* Real-time SSE Live Stream Badge */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              background: isLiveStreamConnected ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.05)',
+              border: isLiveStreamConnected ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid rgba(255, 255, 255, 0.1)',
+              color: isLiveStreamConnected ? '#34d399' : '#94a3b8',
+              padding: '6px 14px',
+              borderRadius: '9999px',
+              fontSize: '0.78rem',
+              fontWeight: 700,
+            }}
+            title="Kênh truyền tín hiệu thời gian thực Server-Sent Events"
+          >
+            <span
+              style={{
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                background: isLiveStreamConnected ? '#10b981' : '#64748b',
+                display: 'inline-block',
+                boxShadow: isLiveStreamConnected ? '0 0 10px #10b981' : 'none',
+              }}
+            />
+            <span>{isLiveStreamConnected ? 'SSE Live Stream: Hoạt động' : 'SSE: Đang kết nối...'}</span>
+          </div>
+
           <a
             href="http://localhost:5000/admin-portal?key=aura_hoangphuc_secure_admin_2026"
             target="_blank"
@@ -1936,13 +2097,40 @@ export const AdminPortalPage = ({ onNavigateHome }) => {
           {/* TAB 2: ORDERS MANAGEMENT */}
           {activeTab === 'orders' && (
             <div>
-              <div style={{ marginBottom: '24px' }}>
-                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: 800 }}>
-                  Quản Lý Đơn Hàng Khách Hàng ({orders.length} đơn)
-                </h2>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                  Kiểm tra thông tin giao nhận, địa chỉ, phương thức thanh toán và cập nhật trạng thái đơn hàng.
-                </p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '14px', marginBottom: '24px' }}>
+                <div>
+                  <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: 800 }}>
+                    Quản Lý Đơn Hàng Khách Hàng ({orders.length} đơn)
+                  </h2>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                    Kiểm tra thông tin giao nhận, địa chỉ, phương thức thanh toán và cập nhật trạng thái đơn hàng.
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <button
+                    onClick={handleTriggerExpiryScan}
+                    disabled={triggeringExpiryScan}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      background: 'rgba(250, 204, 21, 0.12)',
+                      border: '1px solid rgba(250, 204, 21, 0.35)',
+                      color: '#facc15',
+                      padding: '9px 16px',
+                      borderRadius: '10px',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                    }}
+                    title="Tự động quét các đơn VNPay/MoMo quá 15 phút chưa thanh toán, hủy đơn và hoàn trả tồn kho"
+                  >
+                    <Clock size={15} />
+                    <span>{triggeringExpiryScan ? 'Đang quét...' : '⚡ Quét đơn quá hạn 15p'}</span>
+                  </button>
+                </div>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>

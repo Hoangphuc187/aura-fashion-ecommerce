@@ -12,6 +12,8 @@ import dashboardRoutes from './routes/dashboardRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
 import couponRoutes from './routes/couponRoutes.js';
 import supportRoutes from './routes/supportRoutes.js';
+import realtimeRoutes from './routes/realtimeRoutes.js';
+import { startOrderExpiryWorker } from './services/orderExpiryWorker.js';
 
 dotenv.config();
 // Validate critical environment secrets on startup
@@ -578,6 +580,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/coupons', couponRoutes);
 app.use('/api/support', supportRoutes);
+app.use('/api/realtime', realtimeRoutes);
 
 // Catch-all 404 Handler for undefined routes (Anti-Directory Fuzzing Detection)
 app.use((req, res) => {
@@ -614,6 +617,9 @@ const startServer = async () => {
   try {
     await connectDB();
     await seedDatabase();
+
+    // Start background order expiry worker (auto-cancel & restock every 60s)
+    startOrderExpiryWorker(60);
 
     app.listen(PORT, () => {
       console.log(`\n🚀 ===============================================`);

@@ -16,6 +16,8 @@ export const SecurityEvent = {
   RATE_LIMIT_EXCEEDED: 'RATE_LIMIT_EXCEEDED',
   WAF_BLOCKED: 'WAF_BLOCKED',
   ORDER_CREATED: 'ORDER_CREATED',
+  ORDER_EXPIRED: 'ORDER_EXPIRED',
+  ORDER_STATUS_UPDATED: 'ORDER_STATUS_UPDATED',
 };
 
 export const logSecurityEvent = (eventType, req, details = {}) => {

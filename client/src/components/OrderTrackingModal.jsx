@@ -17,6 +17,8 @@ export const OrderTrackingModal = ({ initialCode = '', onClose, onOpenProduct })
   const [code, setCode] = useState(initialCode);
   const [loading, setLoading] = useState(false);
   const [order, setOrder] = useState(null);
+  const [isLiveConnected, setIsLiveConnected] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(null);
 
   const fetchOrder = async (searchCode) => {
     if (!searchCode.trim()) return;
@@ -40,6 +42,75 @@ export const OrderTrackingModal = ({ initialCode = '', onClose, onOpenProduct })
       fetchOrder(initialCode);
     }
   }, [initialCode]);
+
+  // Real-time Live Tracking via Server-Sent Events (SSE)
+  useEffect(() => {
+    if (!order?.orderCode) return;
+
+    let eventSource;
+    try {
+      eventSource = new EventSource(`/api/realtime/order/${order.orderCode}`);
+
+      eventSource.onopen = () => {
+        setIsLiveConnected(true);
+      };
+
+      eventSource.addEventListener('connected', () => {
+        setIsLiveConnected(true);
+      });
+
+      eventSource.addEventListener('order_updated', (e) => {
+        try {
+          const payload = JSON.parse(e.data);
+          if (payload && payload.order) {
+            setOrder(payload.order);
+            addToast(`⚡ Trạng thái đơn hàng vừa cập nhật: ${payload.order.orderStatus}!`, 'info');
+          }
+        } catch (err) {
+          console.error('SSE JSON parse error:', err);
+        }
+      });
+
+      eventSource.onerror = () => {
+        setIsLiveConnected(false);
+      };
+    } catch (err) {
+      console.error('Failed to init SSE:', err);
+    }
+
+    return () => {
+      if (eventSource) {
+        eventSource.close();
+      }
+      setIsLiveConnected(false);
+    };
+  }, [order?.orderCode, addToast]);
+
+  // Countdown for Pending VNPay / MoMo orders (15 minutes expiry)
+  useEffect(() => {
+    if (!order || order.orderStatus !== 'Pending' || !['VNPAY', 'MOMO'].includes(order.paymentMethod)) {
+      setTimeLeft(null);
+      return;
+    }
+
+    const createdAtMs = new Date(order.createdAt).getTime();
+    const expiryMs = createdAtMs + 15 * 60 * 1000;
+
+    const updateTimer = () => {
+      const diff = Math.max(0, expiryMs - Date.now());
+      const mins = Math.floor(diff / 60000);
+      const secs = Math.floor((diff % 60000) / 1000);
+      setTimeLeft({
+        totalMs: diff,
+        formatted: `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`,
+        isExpired: diff <= 0,
+      });
+    };
+
+    updateTimer();
+    const timer = setInterval(updateTimer, 1000);
+    return () => clearInterval(timer);
+  }, [order]);
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -192,25 +263,103 @@ export const OrderTrackingModal = ({ initialCode = '', onClose, onOpenProduct })
                 </div>
               </div>
 
-              {(() => {
-                const badge = getStatusBadge(order.orderStatus);
-                return (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                {/* Live SSE Indicator */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: '0.74rem',
+                    background: isLiveConnected ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.05)',
+                    color: isLiveConnected ? '#34d399' : '#94a3b8',
+                    border: isLiveConnected ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(255, 255, 255, 0.1)',
+                    padding: '4px 10px',
+                    borderRadius: '9999px',
+                    fontWeight: 700,
+                  }}
+                >
                   <span
                     style={{
-                      background: badge.bg,
-                      color: badge.color,
-                      border: `1px solid ${badge.color}`,
-                      padding: '6px 14px',
-                      borderRadius: '9999px',
-                      fontSize: '0.82rem',
-                      fontWeight: 800,
+                      width: '7px',
+                      height: '7px',
+                      borderRadius: '50%',
+                      background: isLiveConnected ? '#10b981' : '#64748b',
+                      display: 'inline-block',
+                      boxShadow: isLiveConnected ? '0 0 8px #10b981' : 'none',
                     }}
-                  >
-                    {badge.text}
-                  </span>
-                );
-              })()}
+                  />
+                  <span>{isLiveConnected ? 'Live SSE Sync' : 'Đang kết nối...'}</span>
+                </div>
+
+                {(() => {
+                  const badge = getStatusBadge(order.orderStatus);
+                  return (
+                    <span
+                      style={{
+                        background: badge.bg,
+                        color: badge.color,
+                        border: `1px solid ${badge.color}`,
+                        padding: '6px 14px',
+                        borderRadius: '9999px',
+                        fontSize: '0.82rem',
+                        fontWeight: 800,
+                      }}
+                    >
+                      {badge.text}
+                    </span>
+                  );
+                })()}
+              </div>
             </div>
+
+            {/* Countdown Banner for pending online gateway orders */}
+            {timeLeft && (
+              <div
+                style={{
+                  background: timeLeft.isExpired ? 'rgba(239, 68, 68, 0.15)' : 'rgba(250, 204, 21, 0.12)',
+                  border: timeLeft.isExpired ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(250, 204, 21, 0.4)',
+                  padding: '12px 18px',
+                  borderRadius: '14px',
+                  marginBottom: '24px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '10px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <Clock size={18} color={timeLeft.isExpired ? '#ef4444' : '#facc15'} />
+                  <div>
+                    <div style={{ fontSize: '0.86rem', fontWeight: 700, color: timeLeft.isExpired ? '#fca5a5' : '#fef08a' }}>
+                      {timeLeft.isExpired
+                        ? 'Thời gian thanh toán đã kết thúc!'
+                        : `Thời gian giữ hàng & hoàn tất thanh toán ${order.paymentMethod}:`}
+                    </div>
+                    <div style={{ fontSize: '0.74rem', color: '#94a3b8' }}>
+                      {timeLeft.isExpired
+                        ? 'Hệ thống tự động hủy đơn và hoàn trả tồn kho nếu chưa thanh toán.'
+                        : 'Sau 15 phút, hệ thống tự động hủy đơn và hoàn tồn kho cho khách khác.'}
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '1.15rem',
+                    fontWeight: 900,
+                    color: timeLeft.isExpired ? '#ef4444' : '#facc15',
+                    background: 'rgba(0, 0, 0, 0.3)',
+                    padding: '4px 12px',
+                    borderRadius: '8px',
+                  }}
+                >
+                  {timeLeft.isExpired ? '00:00 (Hết hạn)' : timeLeft.formatted}
+                </div>
+              </div>
+            )}
 
             {/* Timeline */}
             <div style={{ marginBottom: '28px' }}>

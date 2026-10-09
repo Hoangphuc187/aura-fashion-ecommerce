@@ -6,6 +6,8 @@
     "dev:server": "cd server && npm run dev",
     "dev:client": "cd client && npm run dev",
     "seed": "cd server && npm run seed",
+    "test:realtime": "cd server && npm run test:realtime",
+    "test:security": "cd server && npm run test:security",
     "install:all": "cd server && npm install && cd ../client && npm install"
   },
   "keywords": ["ecommerce", "fashion", "streetwear", "mongodb", "react", "express"]

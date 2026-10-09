@@ -29,14 +29,19 @@ class SSEService {
       'Access-Control-Allow-Origin': req.headers.origin || '*',
       'Access-Control-Allow-Credentials': 'true',
     });
+    if (typeof res.flushHeaders === 'function') {
+      res.flushHeaders();
+    }
 
     res.write(`event: connected\ndata: ${JSON.stringify({ message: 'Connected to AURA Admin Realtime Stream', timestamp: new Date() })}\n\n`);
 
     this.adminClients.add(res);
 
-    req.on('close', () => {
+    const cleanup = () => {
       this.adminClients.delete(res);
-    });
+    };
+    req.on('close', cleanup);
+    res.on('close', cleanup);
   }
 
   /**
@@ -53,6 +58,9 @@ class SSEService {
       'Access-Control-Allow-Origin': req.headers.origin || '*',
       'Access-Control-Allow-Credentials': 'true',
     });
+    if (typeof res.flushHeaders === 'function') {
+      res.flushHeaders();
+    }
 
     res.write(`event: connected\ndata: ${JSON.stringify({ message: `Subscribed to live tracking for ${cleanCode}`, orderCode: cleanCode })}\n\n`);
 
@@ -63,12 +71,14 @@ class SSEService {
     const clientSet = this.orderClients.get(cleanCode);
     clientSet.add(res);
 
-    req.on('close', () => {
+    const cleanup = () => {
       clientSet.delete(res);
       if (clientSet.size === 0) {
         this.orderClients.delete(cleanCode);
       }
-    });
+    };
+    req.on('close', cleanup);
+    res.on('close', cleanup);
   }
 
   /**

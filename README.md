@@ -8,6 +8,7 @@
 [![Vite](https://img.shields.io/badge/Vite-6.0-646CFF?style=flat&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![MongoDB](https://img.shields.io/badge/MongoDB-Atlas_Cloud-47A248?style=flat&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
 [![JWT](https://img.shields.io/badge/JWT-Secure_Auth-000000?style=flat&logo=jsonwebtokens&logoColor=white)](https://jwt.io/)
+[![Realtime SSE](https://img.shields.io/badge/Realtime-Server--Sent_Events-ff9900?style=flat)](https://github.com/Hoangphuc187/aura-fashion-ecommerce)
 [![Security](https://img.shields.io/badge/Security-WAF_&_Honeypot-ff0055?style=flat)](https://github.com/Hoangphuc187/aura-fashion-ecommerce)
 
 ---
@@ -166,6 +167,39 @@ Toàn bộ hình ảnh dưới đây được chụp trực tiếp từ hệ th�
 
 ---
 
+## ⚡ TÍNH NĂNG NÂNG CAO ĐỘC QUYỀN (ENTERPRISE ARCHITECTURE)
+
+### 1. 🔄 Background Worker: Quản Lý Vòng Đời Đơn Hàng Hết Hạn (Order Expiry Worker)
+* **Giải quyết bài toán tồn kho**: Khi khách hàng đặt đơn chọn cổng thanh toán trực tuyến (VNPay/MoMo) nhưng tắt tab trình duyệt, mất kết nối hoặc hủy thanh toán dở dang, sản phẩm sẽ bị giam giữ (Inventory Lock) khiến những khách hàng khác không thể mua được.
+* **Cơ chế hoạt động**:
+  * **Daemon Worker chu kỳ 60s**: Tự động kích hoạt ngay khi server khởi động (`services/orderExpiryWorker.js`).
+  * **Bộ lọc điều kiện nghiêm ngặt**: Quét các đơn hàng `paymentMethod: ['VNPAY', 'MOMO']`, trạng thái `orderStatus: 'Pending'`, `paymentStatus: 'Pending'` có thời gian tạo `createdAt <= cutoffTime` (vượt quá **15 phút**).
+  * **Chuyển trạng thái & lý do**: Chuyển `orderStatus = 'Cancelled'` với lý do hủy rõ ràng: *"Tự động hủy do quá hạn thanh toán 15 phút"*.
+  * **Transactional Stock Rollback**: Hoàn trả chính xác số lượng tồn kho `stockQuantity` về database cho từng sản phẩm và size.
+  * **Transactional Coupon Rollback**: Giảm `usedCount` của mã giảm giá tương ứng để khách hàng khác có thể tiếp tục sử dụng.
+  * **Ghi vết kiểm toán (Audit Trail)**: Ghi log sự kiện bảo mật `ORDER_EXPIRED`.
+  * **API Quét thủ công tức thì cho Admin**: Hỗ trợ endpoint `POST /api/orders/admin/trigger-expiry-check` (được bảo vệ bởi Stealth Admin Cloaking).
+
+---
+
+### 2. ⚡ Đồng Bộ Hóa Thời Gian Thực Bằng Server-Sent Events (SSE) & Web Audio API
+* **Giải quyết bài toán trải nghiệm**: Loại bỏ hoàn toàn sự ức chế khi người dùng hoặc Quản trị viên phải liên tục ấn F5 để kiểm tra trạng thái mới. Chọn **Native SSE** thay vì WebSocket cồng kềnh giúp tối ưu tài nguyên, tương thích hoàn toàn kiến trúc nén Gzip và tự động hỗ trợ cơ chế Auto-Reconnect qua giao thức HTTP chuẩn.
+* **Cơ chế hoạt động**:
+  * **Kênh Admin Live Stream (`GET /api/realtime/admin?token=...`)**:
+    * Xác thực bảo mật phân quyền JWT Admin trực tiếp khi kết nối.
+    * Khi khách đặt đơn mới hoặc hủy đơn: Bảng quản trị Admin **tự động cập nhật danh sách đơn và doanh thu ngay lập tức**.
+    * **Âm thanh thông báo tự nhiên (Web Audio API Synthesizer)**: Phát chuông âm tần số cao "ting-ting" 587Hz & 880Hz mô phỏng chuông POS thu ngân mà không cần tải file `.mp3` ngoài.
+    * Nhận thông báo đẩy pop-up khi có đơn hàng mới (`new_order`), đơn hủy do hết hạn (`order_expired`) hoặc ticket hỗ trợ mới (`new_ticket`).
+    * Nút bấm **`⚡ Quét đơn quá hạn 15p`** cho phép Admin kích hoạt worker thủ công ngay lập tức.
+    * Huy hiệu trạng thái kết nối `⚡ SSE Live Stream: Hoạt động` hiển thị trên thanh tiêu đề Admin.
+  * **Kênh Live Tracking Khách Hàng (`GET /api/realtime/order/:orderCode`)**:
+    * Khách hàng tra cứu đơn hàng tự động kết nối vào phòng theo dõi riêng biệt (Room Isolation).
+    * Khi Admin duyệt trạng thái (`Processing` ➔ `Shipping` ➔ `Delivered` ➔ `Cancelled`), timeline của khách hàng **nhảy nấc trạng thái tức thì** kèm thông báo Toast.
+    * Tích hợp **đồng hồ đếm ngược 15:00** trực tiếp cho các đơn hàng chờ thanh toán online; khi hết giờ tự động chuyển trạng thái đã hủy.
+  * **Heartbeat Ping**: Tự động gửi ping `: keep-alive` mỗi 25 giây để duy trì kết nối qua Proxy/Nginx.
+
+---
+
 ## 🌟 Bảng Tổng Hợp Tính Năng Hệ Thống
 
 | Phân hệ | Tính năng nổi bật | Công nghệ / Ghi chú |
@@ -174,11 +208,12 @@ Toàn bộ hình ảnh dưới đây được chụp trực tiếp từ hệ th�
 | **Tìm kiếm & Bộ lọc** | Lọc theo 6 danh mục, 5 size, thanh trượt giá, sắp xếp đa chiều | Client-side & Server query |
 | **Giỏ hàng & Đặt hàng** | Drawer trượt, freeship bar, áp dụng mã giảm giá, tự động điền địa chỉ | React Context & LocalStorage |
 | **Cổng thanh toán** | COD, MoMo QR/ATM (HMAC-SHA256), VNPay (HMAC-SHA512) | Sandbox API chuẩn bảo mật ngân hàng |
-| **Tra cứu đơn hàng** | Timeline vận chuyển 4 bước thời gian thực, mã QR kiểm tra | REST API `/api/orders/track/:code` |
+| **Tra cứu đơn hàng Realtime** | Timeline vận chuyển live sync (SSE), đồng hồ đếm ngược 15:00, mã QR kiểm tra | Server-Sent Events `/api/realtime/order/:code` |
 | **Hỗ trợ & Live Chat** | FAQ Accordion, Tạo Ticket `#TK-XXXXXX`, Bot tư vấn AI 24/7 | MongoDB Collection `Ticket` & `FAQ` |
 | **Tài khoản cá nhân** | Hồ sơ, Sổ địa chỉ mặc định, Đơn mua 6 trạng thái, Đánh giá có ảnh, Kho voucher, Bảo mật đa thiết bị | JWT Authentication & Token Versioning |
-| **Admin Dashboard** | Thống kê doanh thu, biểu đồ phân tích, tỷ lệ chuyển đổi | Aggregation Pipeline MongoDB |
+| **Admin Dashboard Realtime** | Auto-update doanh thu & đơn mới qua SSE, chuông báo Web Audio, biểu đồ phân tích | Aggregation Pipeline MongoDB & SSE Stream |
 | **Admin Kho & Đơn hàng** | Cập nhật trạng thái đơn, in hóa đơn VAT QR, cảnh báo hết hàng, hoàn voucher/stock khi hủy đơn | Transaction Logic & Mongoose Models |
+| **Order Expiry Worker** | Tự động hủy đơn VNPay/MoMo quá 15p, rollback tồn kho & voucher, quét nền 60s | Scheduled Background Worker |
 | **Bảo mật hệ thống** | Ẩn route Admin (404 Cloaking), Rate Limit, Honeypot WAF, Input Sanitization | Express Security Middlewares |
 
 ---
@@ -200,12 +235,17 @@ Toàn bộ hình ảnh dưới đây được chụp trực tiếp từ hệ th�
   - Vanilla Modern CSS (Design Tokens, Glassmorphism, CSS Grid & Flexbox)
   - Lucide React (Icons)
   - Canvas Confetti
+  - **Web Audio API** (Bộ dao động sóng âm tổng hợp AudioContext - chuông ting-ting không phụ thuộc file mp3)
+  - **EventSource API** (Native Server-Sent Events Client)
 - **Backend**:
   - Node.js & Express.js (RESTful API Architecture)
   - Mongoose & MongoDB Atlas
+  - **Native Server-Sent Events (SSE)** Engine (Zero external dependencies)
+  - **Scheduled Order Expiry Worker** (Tự động quét & rollback tồn kho)
   - JWT (JSON Web Tokens) & Bcryptjs
   - Crypto (HMAC-SHA256 MoMo, HMAC-SHA512 VNPay)
   - Express Rate Limit & Custom Honeypot WAF
+  - Gzip Native Compression Middleware (zlib)
 
 ---
 
@@ -222,7 +262,18 @@ cd ../client
 npm install
 ```
 
-### 2. Cấu hình file môi trường:
+### 2. Kiểm thử tự động (Automated Test Suites):
+Hệ thống tích hợp sẵn các bộ kiểm thử tự động toàn diện:
+```bash
+# Chạy bộ test tính năng Realtime SSE & Order Expiry Worker (25/25 bài test pass 100%)
+cd server
+npm run test:realtime
+
+# Chạy bộ test bảo mật Security Shield & Stealth Cloaking
+npm run test:security
+```
+
+### 3. Cấu hình file môi trường:
 Tạo file `server/.env` dựa theo file `server/.env.example`:
 ```env
 PORT=5000
@@ -244,7 +295,7 @@ VNPAY_HASH_SECRET=your_vnpay_hash_secret
 VNPAY_URL=https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
 ```
 
-### 3. Khởi chạy hệ thống:
+### 4. Khởi chạy hệ thống:
 
 - **Khởi chạy Backend (Port 5000)**:
   ```bash
@@ -257,7 +308,7 @@ VNPAY_URL=https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
   npm run dev
   ```
 
-### 4. Truy cập hệ thống:
+### 5. Truy cập hệ thống:
 * 🛍️ **Cửa hàng thời trang:** [http://localhost:3000](http://localhost:3000)
 * ⚙️ **Trang Quản Trị Hệ Thống (chỉ truy cập được khi đăng nhập tài khoản Admin):** [http://localhost:3000/admin](http://localhost:3000/admin)
 * 📚 **API Backend Server:** [http://localhost:5000](http://localhost:5000)

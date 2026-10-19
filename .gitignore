@@ -60,3 +60,5 @@ coverage/
 .temp/
 .cache/
 capture_*.js
+server/tests/
+

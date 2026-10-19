@@ -11,3 +11,7 @@ node_modules/
 # Logs
 logs/
 *.log
+
+# Tests (local execution only, excluded from GitHub)
+tests/
+

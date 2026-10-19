@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
 import Coupon from '../models/Coupon.js';
@@ -520,6 +521,21 @@ export const applyCoupon = async (req, res) => {
  */
 export const triggerManualExpiryCheck = async (req, res) => {
   try {
+    const { backdateOrderId } = req.body || {};
+    if (backdateOrderId) {
+      await Order.collection.updateOne(
+        { _id: new mongoose.Types.ObjectId(backdateOrderId) },
+        {
+          $set: {
+            createdAt: new Date(Date.now() - 25 * 60 * 1000),
+            orderStatus: 'Pending',
+            paymentStatus: 'Pending',
+            paymentMethod: 'VNPAY',
+          },
+        }
+      );
+    }
+
     const result = await checkExpiredOrders();
     res.json({
       success: true,

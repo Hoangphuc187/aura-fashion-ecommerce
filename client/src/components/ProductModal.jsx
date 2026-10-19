@@ -15,10 +15,12 @@ import {
   CheckCircle2,
   AlertCircle,
   Trash2,
+  Share2,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { useToast } from '../context/ToastContext';
+import { ImageZoomLens } from './ImageZoomLens';
 
 export const ProductModal = ({ product: initialProduct, onClose, onOpenProduct }) => {
   const { user, wishlist, toggleWishlist, setAuthModalOpen } = useAuth();
@@ -118,6 +120,36 @@ export const ProductModal = ({ product: initialProduct, onClose, onOpenProduct }
 
   const isWishlisted = wishlist.includes(product._id);
 
+  const getFabricBadge = (cat) => {
+    switch (cat) {
+      case 'Áo thun':
+        return 'Chất vải 100% Cotton 280GSM Compact • Thấm hút & đứng form';
+      case 'Áo khoác':
+        return 'Vải dù 2 lớp chống gió cản nước • Khóa kéo YKK kim loại';
+      case 'Sơ mi':
+        return 'Lụa Cotton thô mềm mát • Nút khuy xà cừ khắc chìm';
+      case 'Quần & Shorts':
+        return 'Nỉ da cá chân cua 350GSM co giãn 4 chiều • Dây rút bọc kim loại';
+      default:
+        return 'Chất liệu thời trang cao cấp • Tiêu chuẩn may xuất khẩu';
+    }
+  };
+
+  const handleShareProduct = () => {
+    const url = `${window.location.origin}/?product=${product._id}`;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url)
+        .then(() => {
+          addToast('🔗 Đã sao chép liên kết sản phẩm! Bạn có thể gửi cho bạn bè để cùng xem.', 'success');
+        })
+        .catch(() => {
+          addToast(`Liên kết sản phẩm: ${url}`, 'info');
+        });
+    } else {
+      addToast(`Liên kết: ${url}`, 'info');
+    }
+  };
+
   const handleAddToCart = () => {
     addToCart(product, selectedSize, selectedColor, quantity);
   };
@@ -206,6 +238,39 @@ export const ProductModal = ({ product: initialProduct, onClose, onOpenProduct }
           animation: 'fadeIn 0.25s ease-out',
         }}
       >
+        {/* Share Button */}
+        <button
+          onClick={handleShareProduct}
+          title="Sao chép liên kết chia sẻ sản phẩm"
+          style={{
+            position: 'absolute',
+            top: '18px',
+            right: '62px',
+            zIndex: 10,
+            width: '36px',
+            height: '36px',
+            borderRadius: '50%',
+            background: 'rgba(255, 255, 255, 0.1)',
+            border: 'none',
+            color: '#fff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(250, 204, 21, 0.25)';
+            e.currentTarget.style.color = '#facc15';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+            e.currentTarget.style.color = '#fff';
+          }}
+        >
+          <Share2 size={17} />
+        </button>
+
         {/* Close Button */}
         <button
           onClick={onClose}
@@ -243,28 +308,12 @@ export const ProductModal = ({ product: initialProduct, onClose, onOpenProduct }
         >
           {/* Left Column: Image Gallery */}
           <div>
-            {/* Main Preview Image */}
-            <div
-              style={{
-                borderRadius: '18px',
-                overflow: 'hidden',
-                position: 'relative',
-                paddingTop: '115%',
-                background: '#161824',
-                marginBottom: '14px',
-                border: '1px solid rgba(255,255,255,0.08)',
-              }}
-            >
-              <img
+            {/* Main Preview Image with Interactive Zoom Lens */}
+            <div style={{ position: 'relative', marginBottom: '14px' }}>
+              <ImageZoomLens
                 src={selectedImage}
                 alt={product.name}
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                }}
+                fabricBadge={getFabricBadge(product.category)}
               />
 
               {product.discountPercent > 0 && (
@@ -279,6 +328,8 @@ export const ProductModal = ({ product: initialProduct, onClose, onOpenProduct }
                     fontWeight: 800,
                     padding: '4px 10px',
                     borderRadius: '6px',
+                    zIndex: 25,
+                    boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)',
                   }}
                 >
                   GIẢM {product.discountPercent}%

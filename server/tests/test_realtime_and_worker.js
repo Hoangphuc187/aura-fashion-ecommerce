@@ -1,8 +1,4 @@
-import mongoose from 'mongoose';
 import dotenv from 'dotenv';
-import Order from '../src/models/Order.js';
-import Product from '../src/models/Product.js';
-
 dotenv.config();
 
 const BASE_URL = 'http://localhost:5000';
@@ -186,11 +182,14 @@ async function runTests() {
     'Admin SSE nhận thông báo đơn mới (event: new_order) ngay lập tức'
   );
 
-  // Check product stock deducted
-  const productAfterOrder = await Product.findById(testProduct._id);
+  // Check product stock deducted via API
+  const prodResAfterOrder = await fetch(`${BASE_URL}/api/products/${testProduct._id}`);
+  const prodDataAfterOrder = await prodResAfterOrder.json();
+  const productAfterOrder = prodDataAfterOrder.product || {};
+  const currentStock = productAfterOrder.countInStock ?? productAfterOrder.stockQuantity;
   check(
-    productAfterOrder.stockQuantity === initialStock - 2,
-    `Tồn kho sản phẩm bị trừ chính xác 2 cái (${initialStock} -> ${productAfterOrder.stockQuantity})`
+    currentStock === initialStock - 2,
+    `Tồn kho sản phẩm bị trừ chính xác 2 cái (${initialStock} -> ${currentStock})`
   );
 
   // 6. Test Status Update Broadcast
@@ -216,47 +215,49 @@ async function runTests() {
 
   // 7. Test Order Expiry Background Worker & Stock Rollback
   console.log('\n7️⃣ Kiểm tra Order Expiry Worker & Transactional Stock Rollback:');
-  // Giả lập đơn hàng quá hạn 15 phút bằng cách cập nhật trực tiếp BSON createdAt qua collection
-  const twentyMinutesAgo = new Date(Date.now() - 25 * 60 * 1000);
-  await Order.collection.updateOne(
-    { _id: new mongoose.Types.ObjectId(newOrder._id) },
-    {
-      $set: {
-        createdAt: twentyMinutesAgo,
-        orderStatus: 'Pending',
-        paymentStatus: 'Pending',
-        paymentMethod: 'VNPAY',
-      },
-    }
-  );
-  console.log('  🕒 Đã lùi BSON createdAt về 25 phút trước để giả lập đơn online hết hạn thanh toán...');
+  console.log('  🕒 Đang yêu cầu kích hoạt đơn quá hạn và quét tự động...');
 
-  // Kích hoạt API quét đơn quá hạn của Admin
+  // Kích hoạt API quét đơn quá hạn của Admin (truyền backdateOrderId để kiểm thử)
   const triggerRes = await fetch(`${BASE_URL}/api/orders/admin/trigger-expiry-check`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${adminToken}` },
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${adminToken}`,
+    },
+    body: JSON.stringify({ backdateOrderId: newOrder._id }),
   });
   const triggerData = await triggerRes.json();
   check(triggerRes.status === 200, 'Admin gọi API trigger-expiry-check thành công (HTTP 200)');
   check(triggerData.success === true, 'Kết quả quét trả về success: true');
   check(triggerData.result?.count >= 1, `Worker đã tìm thấy và xử lý ${triggerData.result?.count} đơn quá hạn`);
 
-  // Verify order in database
-  const expiredOrderInDb = await Order.findById(newOrder._id);
+  // Verify order via API (using admin authorization to bypass IDOR protection)
+  const orderVerifyRes = await fetch(`${BASE_URL}/api/orders/${newOrder.orderCode}`, {
+    headers: {
+      Authorization: `Bearer ${adminToken}`,
+    },
+  });
+  const orderVerifyData = await orderVerifyRes.json();
+  const expiredOrderInDb = orderVerifyData.order || {};
+
   check(expiredOrderInDb.orderStatus === 'Cancelled', 'Trạng thái đơn hàng tự động chuyển sang "Cancelled"');
   check(
-    expiredOrderInDb.refundReason.includes('quá hạn thanh toán 15 phút'),
-    `Lý do hủy được ghi nhận chính xác: "${expiredOrderInDb.refundReason}"`
+    (expiredOrderInDb.refundReason || '').includes('quá hạn thanh toán 15 phút'),
+    `Lý do hủy được ghi nhận chính xác: "${expiredOrderInDb.refundReason || ''}"`
   );
   check(
-    expiredOrderInDb.timeline.some((t) => t.status === 'Cancelled'),
+    (expiredOrderInDb.timeline || []).some((t) => t.status === 'Cancelled'),
     'Timeline của đơn hàng tự động bổ sung mốc lịch sử "Tự động hủy đơn do quá thời hạn thanh toán"'
   );
 
-  // Verify stock rolled back
-  const productAfterExpiry = await Product.findById(testProduct._id);
+  // Verify stock rolled back via API
+  const productVerifyRes = await fetch(`${BASE_URL}/api/products/${testProduct._id}`);
+  const productVerifyData = await productVerifyRes.json();
+  const productAfterExpiry = productVerifyData.product || {};
+  const productAfterExpiryStock = productAfterExpiry.stockQuantity ?? productAfterExpiry.countInStock;
+
   check(
-    productAfterExpiry.stockQuantity === initialStock,
+    productAfterExpiryStock === initialStock,
     `Tồn kho sản phẩm được hoàn trả (rollback) chính xác về ${initialStock} cái`
   );
 
@@ -287,13 +288,7 @@ async function runTests() {
   process.exit(passedCount === totalCount ? 0 : 1);
 }
 
-// Connect to MongoDB to verify directly if needed
-mongoose
-  .connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/clothing_store')
-  .then(() => {
-    runTests();
-  })
-  .catch((err) => {
-    console.error('Không thể kết nối MongoDB:', err.message);
-    process.exit(1);
-  });
+runTests().catch((err) => {
+  console.error('Lỗi khi chạy test:', err);
+  process.exit(1);
+});

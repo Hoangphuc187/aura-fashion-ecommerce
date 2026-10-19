@@ -19,9 +19,12 @@ import {
   Shield,
   HelpCircle,
   MessageSquare,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
+import { useTheme } from '../context/ThemeContext';
 
 export const Navbar = ({
   onSelectCategory,
@@ -37,6 +40,7 @@ export const Navbar = ({
 }) => {
   const { user, isAdmin, logout, setAuthModalOpen, wishlist } = useAuth();
   const { totalItemsCount, setCartDrawerOpen, totalPrice } = useCart();
+  const { theme, toggleTheme, isDark } = useTheme();
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -120,10 +124,10 @@ export const Navbar = ({
           position: 'sticky',
           top: 0,
           zIndex: 50,
-          background: 'rgba(9, 10, 15, 0.88)',
+          background: isDark ? 'rgba(9, 10, 15, 0.88)' : 'rgba(255, 255, 255, 0.92)',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+          borderBottom: isDark ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(0, 0, 0, 0.08)',
           transition: 'all 0.3s ease',
         }}
       >
@@ -224,7 +228,7 @@ export const Navbar = ({
                     selectedCategory === cat.value
                       ? 'rgba(255, 255, 255, 0.12)'
                       : 'transparent',
-                  color: selectedCategory === cat.value ? '#facc15' : '#cbd5e1',
+                  color: selectedCategory === cat.value ? '#facc15' : isDark ? '#cbd5e1' : '#334155',
                   border: 'none',
                   padding: '8px 14px',
                   borderRadius: '9999px',
@@ -266,22 +270,22 @@ export const Navbar = ({
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
                 width: '100%',
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
+                background: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+                border: isDark ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid rgba(0, 0, 0, 0.12)',
                 padding: '9px 14px 9px 38px',
                 borderRadius: '9999px',
-                color: '#fff',
+                color: isDark ? '#fff' : '#0f172a',
                 fontSize: '0.85rem',
                 outline: 'none',
                 transition: 'all 0.25s ease',
               }}
               onFocus={(e) => {
-                e.target.style.background = 'rgba(255, 255, 255, 0.1)';
+                e.target.style.background = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)';
                 e.target.style.borderColor = 'rgba(250, 204, 21, 0.4)';
               }}
               onBlur={(e) => {
-                e.target.style.background = 'rgba(255, 255, 255, 0.06)';
-                e.target.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                e.target.style.background = isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)';
+                e.target.style.borderColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.12)';
               }}
             />
             {searchQuery && (
@@ -306,6 +310,35 @@ export const Navbar = ({
 
           {/* Action Icons */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {/* Dark / Light Mode Toggle Button */}
+            <button
+              onClick={toggleTheme}
+              title={isDark ? "Chuyển sang giao diện Sáng (Editorial Light)" : "Chuyển sang giao diện Tối (Cyberpunk Dark)"}
+              style={{
+                background: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.05)',
+                border: isDark ? '1px solid rgba(255, 255, 255, 0.12)' : '1px solid rgba(0, 0, 0, 0.12)',
+                color: isDark ? '#facc15' : '#d97706',
+                width: '40px',
+                height: '40px',
+                borderRadius: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'rotate(18deg) scale(1.08)';
+                e.currentTarget.style.background = isDark ? 'rgba(250, 204, 21, 0.18)' : 'rgba(217, 119, 6, 0.15)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'rotate(0deg) scale(1)';
+                e.currentTarget.style.background = isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.05)';
+              }}
+            >
+              {isDark ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
+
             {/* Tra cứu đơn hàng */}
             <button
               onClick={onOpenOrderTracking}

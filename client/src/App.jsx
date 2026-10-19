@@ -3,12 +3,14 @@ import confetti from 'canvas-confetti';
 import { ToastProvider, useToast } from './context/ToastContext';
 import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { initSecurityProtections } from './utils/security';
 
 import { Navbar } from './components/Navbar';
 import { HeroBanner } from './components/HeroBanner';
 import { FeaturedCategories } from './components/FeaturedCategories';
 import { FlashSaleBanner } from './components/FlashSaleBanner';
+import { LookbookSection } from './components/LookbookSection';
 import { ProductFilters } from './components/ProductFilters';
 import { ProductCard } from './components/ProductCard';
 import { ProductModal } from './components/ProductModal';
@@ -162,9 +164,75 @@ const ShopStoreView = ({ onNavigateAdmin }) => {
     setSearchQuery('');
   };
 
+  // Check incoming URL parameters for deep-linking (?product=... or ?order=...)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const productId = params.get('product');
+    const orderParam = params.get('order') || params.get('trackOrder');
+
+    if (productId) {
+      fetch(`/api/products/${productId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.product) {
+            setSelectedProduct(data.product);
+            document.title = `${data.product.name} | AURA STUDIO`;
+          }
+        })
+        .catch(console.error);
+    }
+
+    if (orderParam) {
+      setOrderTrackingCode(orderParam);
+      setOrderTrackingOpen(true);
+    }
+
+    const onPop = () => {
+      const p = new URLSearchParams(window.location.search);
+      const pid = p.get('product');
+      if (!pid) {
+        setSelectedProduct(null);
+        document.title = 'AURA STUDIO - Thời Trang Streetwear & Unisex Cao Cấp';
+      }
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  const handleOpenProduct = (prod) => {
+    setSelectedProduct(prod);
+    if (prod?._id) {
+      const url = new URL(window.location);
+      url.searchParams.set('product', prod._id);
+      window.history.pushState({ productId: prod._id }, '', url.toString());
+      document.title = `${prod.name} | AURA STUDIO`;
+    }
+  };
+
+  const handleCloseProduct = () => {
+    setSelectedProduct(null);
+    const url = new URL(window.location);
+    url.searchParams.delete('product');
+    window.history.pushState({}, '', url.pathname + (url.search ? url.search : ''));
+    document.title = 'AURA STUDIO - Thời Trang Streetwear & Unisex Cao Cấp';
+  };
+
   const handleOpenOrderTracking = (code = '') => {
     setOrderTrackingCode(code);
     setOrderTrackingOpen(true);
+    if (code) {
+      const url = new URL(window.location);
+      url.searchParams.set('order', code);
+      window.history.pushState({ orderCode: code }, '', url.toString());
+    }
+  };
+
+  const handleCloseOrderTracking = () => {
+    setOrderTrackingOpen(false);
+    const url = new URL(window.location);
+    url.searchParams.delete('order');
+    url.searchParams.delete('trackOrder');
+    window.history.pushState({}, '', url.pathname + (url.search ? url.search : ''));
   };
 
   const handleScrollToProducts = () => {
@@ -225,6 +293,12 @@ const ShopStoreView = ({ onNavigateAdmin }) => {
 
       {/* Flash Sale Ticking Banner */}
       <FlashSaleBanner onShowSaleOnly={handleShowSaleOnly} />
+
+      {/* Interactive Editorial Lookbook "Shop The Look" */}
+      <LookbookSection
+        products={products}
+        onOpenProduct={handleOpenProduct}
+      />
 
       {/* Main Catalog Section */}
       <main id="catalog-section" style={{ flex: 1 }}>
@@ -311,7 +385,7 @@ const ShopStoreView = ({ onNavigateAdmin }) => {
                 <ProductCard
                   key={product._id}
                   product={product}
-                  onProductClick={(p) => setSelectedProduct(p)}
+                  onProductClick={handleOpenProduct}
                 />
               ))}
             </div>
@@ -323,8 +397,8 @@ const ShopStoreView = ({ onNavigateAdmin }) => {
       {selectedProduct && (
         <ProductModal
           product={selectedProduct}
-          onClose={() => setSelectedProduct(null)}
-          onOpenProduct={(p) => setSelectedProduct(p)}
+          onClose={handleCloseProduct}
+          onOpenProduct={handleOpenProduct}
         />
       )}
 
@@ -335,8 +409,8 @@ const ShopStoreView = ({ onNavigateAdmin }) => {
       {orderTrackingOpen && (
         <OrderTrackingModal
           initialCode={orderTrackingCode}
-          onClose={() => setOrderTrackingOpen(false)}
-          onOpenProduct={(p) => setSelectedProduct(p)}
+          onClose={handleCloseOrderTracking}
+          onOpenProduct={handleOpenProduct}
         />
       )}
 
@@ -353,7 +427,7 @@ const ShopStoreView = ({ onNavigateAdmin }) => {
         <WishlistModal
           products={products}
           onClose={() => setWishlistOpen(false)}
-          onSelectProduct={(p) => setSelectedProduct(p)}
+          onSelectProduct={handleOpenProduct}
         />
       )}
 
@@ -373,7 +447,7 @@ const ShopStoreView = ({ onNavigateAdmin }) => {
       />
 
       {/* Smart Timed Floating Alerts (Low stock & price drops) */}
-      <SmartNotificationAlert onSelectProduct={(p) => setSelectedProduct(p)} />
+      <SmartNotificationAlert onSelectProduct={handleOpenProduct} />
 
       {/* Footer */}
       <Footer
@@ -430,12 +504,14 @@ const AppContent = () => {
 
 export default function App() {
   return (
-    <ToastProvider>
-      <AuthProvider>
-        <CartProvider>
-          <AppContent />
-        </CartProvider>
-      </AuthProvider>
-    </ToastProvider>
+    <ThemeProvider>
+      <ToastProvider>
+        <AuthProvider>
+          <CartProvider>
+            <AppContent />
+          </CartProvider>
+        </AuthProvider>
+      </ToastProvider>
+    </ThemeProvider>
   );
 }

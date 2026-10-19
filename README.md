@@ -180,6 +180,10 @@ Toàn bộ hình ảnh dưới đây được chụp trực tiếp từ hệ th�
 
 | Phân hệ | Tính năng nổi bật | Công nghệ / Ghi chú |
 | :--- | :--- | :--- |
+| **Chế độ Giao diện (Theme)** | 🌗 Chuyển đổi Dark Mode (Cyberpunk Neon) & Light Mode (Editorial Minimalist) mượt mà | CSS Tokens, ThemeContext, LocalStorage Sync |
+| **Soi vải chi tiết (Zoom Lens)** | 🔍 Kính lúp soi vải 2.8x trong modal chi tiết, hiển thị chất liệu vải và độ co giãn | CSS Masking, Mouse Tracking & Touch Support |
+| **Bộ sưu tập phối đồ (Lookbook)** | 👗 Interactive Lookbook "Shop The Look" với hotspot nhấp nháy, mua combo giảm 10% | Hotspot Coordinates, Bundle Calculator & Cart Drawer |
+| **Deep-Linking & Chia sẻ** | 🌐 Đồng bộ URL thời gian thực (`?product=<id>`, `?order=<code>`), chia sẻ link 1-click | URLSearchParams, History API & Clipboard Toast |
 | **Giao diện Khách hàng** | Dark & Cyberpunk Glassmorphism, Micro-interactions, Confetti ăn mừng | React 19, CSS Modern Tokens |
 | **Tìm kiếm & Bộ lọc** | Lọc theo 6 danh mục, 5 size, thanh trượt giá, sắp xếp đa chiều | Client-side & Server query |
 | **Giỏ hàng & Đặt hàng** | Drawer trượt, freeship bar, áp dụng mã giảm giá, tự động điền địa chỉ | React Context & LocalStorage |

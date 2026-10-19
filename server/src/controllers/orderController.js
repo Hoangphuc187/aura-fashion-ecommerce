@@ -7,6 +7,7 @@ import { logSecurityEvent, SecurityEvent } from '../utils/auditLogger.js';
 import { sendOrderConfirmationEmail } from '../services/emailService.js';
 import { sseService } from '../services/sseService.js';
 import { checkExpiredOrders } from '../services/orderExpiryWorker.js';
+import { invalidateProductCache } from './productController.js';
 
 /**
  * Create Order
@@ -57,14 +58,6 @@ export const createOrder = async (req, res) => {
         return res.status(400).json({ success: false, message: `Sản phẩm với mã ${item.product} không tồn tại` });
       }
 
-      // Check stock
-      if (dbProduct.stockQuantity < item.quantity) {
-        return res.status(400).json({
-          success: false,
-          message: `Sản phẩm "${dbProduct.name}" chỉ còn ${dbProduct.stockQuantity} món trong kho.`,
-        });
-      }
-
       const itemTotal = dbProduct.price * item.quantity;
       calculatedItemsPrice += itemTotal;
 
@@ -79,10 +72,62 @@ export const createOrder = async (req, res) => {
       });
     }
 
-    // 2. Shipping calculation
+    // 2. ATOMIC INVENTORY LOCKING (Chống Race Condition & Bán Âm Kho khi Flash Sale)
+    // Thực hiện trừ kho nguyên tử với điều kiện stockQuantity >= quantity tại mức Database.
+    // Nếu một sản phẩm bất kỳ không đủ tồn kho ở đúng mili-giây đó, rollback toàn bộ các sản phẩm đã trừ trước đó!
+    const successfullyLockedItems = [];
+    let lockFailed = false;
+    let failedItemName = '';
+    let remainingAvailable = 0;
+
+    for (const item of verifiedOrderItems) {
+      const lockedProduct = await Product.findOneAndUpdate(
+        {
+          _id: item.product,
+          stockQuantity: { $gte: item.quantity },
+        },
+        {
+          $inc: { stockQuantity: -item.quantity },
+        },
+        { new: true }
+      );
+
+      if (!lockedProduct) {
+        lockFailed = true;
+        failedItemName = item.name;
+        const currentProd = await Product.findById(item.product).select('stockQuantity name');
+        remainingAvailable = currentProd ? currentProd.stockQuantity : 0;
+        break;
+      }
+
+      successfullyLockedItems.push({
+        product: item.product,
+        quantity: item.quantity,
+        newStock: lockedProduct.stockQuantity,
+      });
+    }
+
+    if (lockFailed) {
+      // Compensating Transaction: Rollback các món đã trừ trước đó trong giỏ hàng
+      for (const locked of successfullyLockedItems) {
+        await Product.findByIdAndUpdate(locked.product, {
+          $inc: { stockQuantity: locked.quantity },
+        });
+      }
+      return res.status(400).json({
+        success: false,
+        message:
+          remainingAvailable <= 0
+            ? `Sản phẩm "${failedItemName}" vừa hết hàng do có nhiều người cùng đặt trong Flash Sale. Vui lòng chọn sản phẩm khác.`
+            : `Sản phẩm "${failedItemName}" chỉ còn ${remainingAvailable} món trong kho. Không đủ số lượng bạn yêu cầu.`,
+        insufficientStock: true,
+      });
+    }
+
+    // 3. Shipping calculation
     const shippingPrice = shippingMethod === 'express' ? 45000 : 30000;
 
-    // 3. Coupon verification
+    // 4. Coupon verification
     let discountAmount = 0;
     let verifiedCouponCode = '';
 
@@ -114,7 +159,7 @@ export const createOrder = async (req, res) => {
 
     const calculatedTotalPrice = Math.max(0, calculatedItemsPrice + shippingPrice - discountAmount);
 
-    // 4. User linking
+    // 5. User linking
     let assignedUserId = req.user ? req.user._id : null;
     if (!assignedUserId && shippingAddress.phone) {
       const matchedUser = await User.findOne({ phone: shippingAddress.phone.trim() });
@@ -180,14 +225,22 @@ export const createOrder = async (req, res) => {
       timeline: initialTimeline,
     });
 
-    const createdOrder = await order.save();
-
-    // Deduct stock quantity safely
-    for (const item of verifiedOrderItems) {
-      await Product.findByIdAndUpdate(item.product, {
-        $inc: { stockQuantity: -item.quantity },
-      });
+    let createdOrder;
+    try {
+      createdOrder = await order.save();
+    } catch (saveError) {
+      // Rollback locked inventory if order save fails
+      for (const locked of successfullyLockedItems) {
+        await Product.findByIdAndUpdate(locked.product, {
+          $inc: { stockQuantity: locked.quantity },
+        }).catch(() => {});
+      }
+      invalidateProductCache();
+      throw saveError;
     }
+
+    // Invalidate product cache so customer view immediately displays updated inventory
+    invalidateProductCache();
 
     // Increment coupon used count if coupon was used
     if (verifiedCouponCode) {
@@ -211,8 +264,14 @@ export const createOrder = async (req, res) => {
       });
     }
 
-    // Broadcast new order event to Admin real-time stream
+    // Broadcast new order event & stock updates to Admin real-time stream
     sseService.broadcastToAdmin('new_order', createdOrder);
+    for (const locked of successfullyLockedItems) {
+      sseService.broadcastToAdmin('stock_updated', {
+        productId: locked.product,
+        stockQuantity: locked.newStock,
+      });
+    }
 
     res.status(201).json({
       success: true,

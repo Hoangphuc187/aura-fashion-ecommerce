@@ -42,15 +42,21 @@ export const CheckoutModal = ({ onOpenOrderTracking }) => {
   const [createdOrder, setCreatedOrder] = useState(null);
   const [couponInput, setCouponInput] = useState('');
 
+  const getAddressStr = (addr) => {
+    if (typeof addr === 'string') return addr;
+    if (addr && typeof addr === 'object') return addr.street || '';
+    return '';
+  };
+
   // Form info
   const [formData, setFormData] = useState({
     fullName: user?.name || '',
     phone: user?.phone || '',
     email: user?.email || '',
-    address: user?.address?.street || '',
-    ward: user?.address?.ward || '',
-    district: user?.address?.district || '',
-    city: user?.address?.city || 'Hồ Chí Minh',
+    address: getAddressStr(user?.address),
+    ward: (typeof user?.address === 'object' ? user?.address?.ward : '') || '',
+    district: (typeof user?.address === 'object' ? user?.address?.district : '') || '',
+    city: (typeof user?.address === 'object' ? user?.address?.city : '') || 'Hồ Chí Minh',
     note: '',
     shippingMethod: 'standard', // 'standard' | 'express'
     paymentMethod: 'MOMO', // Default to MOMO or COD
@@ -65,24 +71,24 @@ export const CheckoutModal = ({ onOpenOrderTracking }) => {
       if (defaultAddr) {
         setFormData((prev) => ({
           ...prev,
-          fullName: defaultAddr.fullName || user.name || prev.fullName,
-          phone: defaultAddr.phone || user.phone || prev.phone,
-          email: user.email || prev.email,
-          address: defaultAddr.street || prev.address,
-          ward: defaultAddr.ward || prev.ward,
-          district: defaultAddr.district || prev.district,
+          fullName: defaultAddr.fullName || user.name || prev.fullName || '',
+          phone: defaultAddr.phone || user.phone || prev.phone || '',
+          email: user.email || prev.email || '',
+          address: defaultAddr.street || prev.address || '',
+          ward: defaultAddr.ward || prev.ward || '',
+          district: defaultAddr.district || prev.district || '',
           city: defaultAddr.city || prev.city || 'Hồ Chí Minh',
         }));
       } else if (user.address || user.name || user.phone) {
         setFormData((prev) => ({
           ...prev,
-          fullName: user.name || prev.fullName,
-          phone: user.phone || prev.phone,
-          email: user.email || prev.email,
-          address: user.address?.street || user.address || prev.address,
-          ward: user.address?.ward || prev.ward,
-          district: user.address?.district || prev.district,
-          city: user.address?.city || prev.city || 'Hồ Chí Minh',
+          fullName: user.name || prev.fullName || '',
+          phone: user.phone || prev.phone || '',
+          email: user.email || prev.email || '',
+          address: getAddressStr(user.address) || prev.address || '',
+          ward: (typeof user.address === 'object' ? user.address?.ward : '') || prev.ward || '',
+          district: (typeof user.address === 'object' ? user.address?.district : '') || prev.district || '',
+          city: (typeof user.address === 'object' ? user.address?.city : '') || prev.city || 'Hồ Chí Minh',
         }));
       }
     }
@@ -109,7 +115,8 @@ export const CheckoutModal = ({ onOpenOrderTracking }) => {
       return false;
     }
 
-    if (!formData.address || formData.address.trim().length < 5) {
+    const cleanAddress = String(formData.address || '').trim();
+    if (!cleanAddress || cleanAddress.length < 5) {
       addToast('Vui lòng nhập địa chỉ nhận hàng chi tiết (số nhà, tên đường, ngõ/hẻm)', 'error');
       return false;
     }
@@ -563,7 +570,7 @@ export const CheckoutModal = ({ onOpenOrderTracking }) => {
                     style={{
                       width: '100%',
                       background: 'rgba(255, 255, 255, 0.06)',
-                      border: !formData.address.trim() ? '1px solid rgba(255,255,255,0.15)' : '1px solid #10b981',
+                      border: !String(formData.address || '').trim() ? '1px solid rgba(255,255,255,0.15)' : '1px solid #10b981',
                       padding: '10px 14px',
                       borderRadius: '8px',
                       color: '#fff',

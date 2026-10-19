@@ -1,0 +1,42 @@
+services:
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: aura-backend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - NODE_ENV=production
+      - MONGODB_URI=${MONGODB_URI}
+      - JWT_SECRET=${JWT_SECRET:-aura_jwt_super_secure_secret_key_32_chars}
+      - ADMIN_SECRET_KEY=${ADMIN_SECRET_KEY:-aura_secure_stealth_admin_key_2026}
+      - CLIENT_URL=http://localhost:3000
+      - MOMO_PARTNER_CODE=${MOMO_PARTNER_CODE:-MOMO}
+      - MOMO_ACCESS_KEY=${MOMO_ACCESS_KEY:-your_momo_access_key}
+      - MOMO_SECRET_KEY=${MOMO_SECRET_KEY:-your_momo_secret_key}
+      - MOMO_API_URL=${MOMO_API_URL:-https://test-payment.momo.vn/gw_payment/transactionProcessor}
+      - VNPAY_TMN_CODE=${VNPAY_TMN_CODE:-your_vnpay_tmn_code}
+      - VNPAY_HASH_SECRET=${VNPAY_HASH_SECRET:-your_vnpay_hash_secret}
+      - VNPAY_URL=${VNPAY_URL:-https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
+    networks:
+      - aura-network
+
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: aura-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - aura-network
+
+networks:
+  aura-network:
+    driver: bridge

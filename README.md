@@ -194,6 +194,8 @@ Toàn bộ hình ảnh dưới đây được chụp trực tiếp từ hệ th�
 | **Admin Dashboard Realtime** | Auto-update doanh thu & đơn mới qua SSE, chuông báo Web Audio, biểu đồ phân tích | Aggregation Pipeline MongoDB & SSE Stream |
 | **Admin Kho & Đơn hàng** | Cập nhật trạng thái đơn, in hóa đơn VAT QR, cảnh báo hết hàng, hoàn voucher/stock khi hủy đơn | Transaction Logic & Mongoose Models |
 | **Order Expiry Worker** | Tự động hủy đơn VNPay/MoMo quá 15p, rollback tồn kho & voucher, quét nền 60s | Scheduled Background Worker |
+| **Chống Bán Âm Kho (Flash Sale)** | ⚡ Atomic Inventory Locking & Compensating Rollback chống Race Condition | MongoDB `$inc` & `{ $gte: qty }` Atomic Update |
+| **Docker & CI/CD** | 🐳 Multi-stage Dockerfile, Nginx SPA Reverse Proxy, GitHub Actions CI/CD tự động | Docker, Docker Compose, GitHub Actions |
 | **Bảo mật hệ thống** | Ẩn route Admin (404 Cloaking), Rate Limit, Honeypot WAF, Input Sanitization | Express Security Middlewares |
 
 ---

@@ -8,9 +8,10 @@
     "start": "node src/server.js",
     "dev": "node --watch-path=src src/server.js",
     "seed": "node src/seed.js",
-    "test": "node tests/test_security.js && node tests/test_realtime_and_worker.js",
+    "test": "node tests/test_security.js && node tests/test_realtime_and_worker.js && node tests/test_race_condition.js",
     "test:realtime": "node tests/test_realtime_and_worker.js",
-    "test:security": "node tests/test_security.js"
+    "test:security": "node tests/test_security.js",
+    "test:race": "node tests/test_race_condition.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

@@ -1,0 +1,79 @@
+name: AURA E-Commerce CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master, feature/** ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test-and-validate:
+    name: 🧪 Automated Test Suites & Build Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: |
+            server/package.json
+            client/package.json
+
+      - name: 📦 Install Server Dependencies
+        working-directory: ./server
+        run: npm ci
+
+      - name: 🛡️ Run Security, Realtime & Race Condition Test Suites (47 Tests)
+        working-directory: ./server
+        env:
+          PORT: 5000
+          NODE_ENV: test
+          MONGODB_URI: ${{ secrets.MONGODB_URI || 'mongodb://localhost:27017/clothing_store' }}
+          JWT_SECRET: ci_cd_test_jwt_secret_key_at_least_32_characters_long
+          ADMIN_SECRET_KEY: ci_cd_stealth_admin_secret_key
+          CLIENT_URL: http://localhost:3000
+        run: |
+          npm start &
+          sleep 4
+          npm test
+
+      - name: 📦 Install Client Dependencies
+        working-directory: ./client
+        run: npm ci
+
+      - name: 🏗️ Build Frontend Vite Production Bundle
+        working-directory: ./client
+        run: npm run build
+
+  docker-build:
+    name: 🐳 Docker Container Build & Verification
+    needs: test-and-validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🐳 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🔨 Build Backend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./server
+          file: ./server/Dockerfile
+          push: false
+          tags: aura-backend:latest
+
+      - name: 🔨 Build Frontend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./client
+          file: ./client/Dockerfile
+          push: false
+          tags: aura-frontend:latest

@@ -683,17 +683,19 @@ export const LookbookSection = ({ products = [], onOpenProduct }) => {
               onClick={handleBuyBundle}
               style={{
                 width: '100%',
-                padding: '14px',
+                padding: '14px 20px',
                 borderRadius: '14px',
                 background: 'linear-gradient(135deg, #facc15 0%, #f59e0b 100%)',
                 color: '#000',
                 border: 'none',
-                fontWeight: 900,
-                fontSize: '0.96rem',
+                fontFamily: 'var(--font-sans)',
+                fontWeight: 700,
+                fontSize: '0.94rem',
+                letterSpacing: '0.01em',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '10px',
+                gap: '8px',
                 cursor: 'pointer',
                 boxShadow: '0 8px 25px rgba(250, 204, 21, 0.4)',
                 transition: 'all 0.25s ease',
@@ -707,8 +709,8 @@ export const LookbookSection = ({ products = [], onOpenProduct }) => {
                 e.currentTarget.style.boxShadow = '0 8px 25px rgba(250, 204, 21, 0.4)';
               }}
             >
-              <ShoppingBag size={18} />
-              <span>🛍️ MUA TRỌN BỘ PHỐI NÀY (TIẾT KIỆM 10%)</span>
+              <ShoppingBag size={18} strokeWidth={2.2} />
+              <span>Mua trọn bộ phối này (Tiết kiệm 10%)</span>
             </button>
           </div>
         </div>

@@ -51,10 +51,73 @@ export const AuthProvider = ({ children }) => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Đăng nhập thất bại');
 
+      if (data.require2FA) {
+        return data;
+      }
+
       setUser(data.user);
       addToast(`Xin chào trở lại, ${data.user.name}!`, 'success');
       setAuthModalOpen(false);
       return data.user;
+    } catch (err) {
+      addToast(err.message, 'error');
+      throw err;
+    }
+  };
+
+  const verify2FA = async (tempToken, otp) => {
+    try {
+      const res = await fetch('/api/auth/verify-2fa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tempToken, otp }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Xác thực OTP thất bại');
+
+      setUser(data.user);
+      addToast(`Xin chào trở lại, ${data.user.name}!`, 'success');
+      setAuthModalOpen(false);
+      return data.user;
+    } catch (err) {
+      addToast(err.message, 'error');
+      throw err;
+    }
+  };
+
+  const resend2FA = async (tempToken) => {
+    try {
+      const res = await fetch('/api/auth/resend-2fa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tempToken }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Gửi lại OTP thất bại');
+      addToast(data.message || 'Mã xác thực mới đã được gửi đến email!', 'info');
+      return data;
+    } catch (err) {
+      addToast(err.message, 'error');
+      throw err;
+    }
+  };
+
+  const toggle2FA = async (enabled) => {
+    try {
+      if (!user?.token) throw new Error('Vui lòng đăng nhập');
+      const res = await fetch('/api/auth/toggle-2fa', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${user.token}`,
+        },
+        body: JSON.stringify({ enabled }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Cập nhật 2FA thất bại');
+      setUser((prev) => (prev ? { ...prev, twoFactorEnabled: data.twoFactorEnabled } : prev));
+      addToast(data.message, 'success');
+      return data.twoFactorEnabled;
     } catch (err) {
       addToast(err.message, 'error');
       throw err;
@@ -201,6 +264,9 @@ export const AuthProvider = ({ children }) => {
         loginAsDemoAdmin,
         updateUser,
         refreshUserProfile,
+        verify2FA,
+        resend2FA,
+        toggle2FA,
       }}
     >
       {children}

@@ -1,16 +1,17 @@
 /**
- * Native Lightweight SMTP Email Service
- * Zero external dependencies - uses Node.js native TLS for secure SMTP delivery
+ * AURA STUDIO - High-Performance SMTP Email Service (Nodemailer)
+ * Hỗ trợ gửi Email HTML cao cấp qua Gmail SMTP cho Xác Thực 2 Lớp (2FA),
+ * Đặt lại mật khẩu và Hóa đơn đơn hàng thời gian thực.
  */
 
-import tls from 'tls';
+import nodemailer from 'nodemailer';
 
 /**
  * Send an email via Gmail SMTP
  */
 export const sendEmail = async ({ to, subject, html, text }) => {
   const host = process.env.SMTP_HOST || 'smtp.gmail.com';
-  const port = Number(process.env.SMTP_PORT) === 465 ? 465 : 465; // Direct SSL/TLS port for Gmail
+  const port = Number(process.env.SMTP_PORT) || 587;
   const user = process.env.SMTP_USER || '';
   const pass = (process.env.SMTP_PASS || '').replace(/\s+/g, '');
   const from = process.env.SMTP_FROM || user;
@@ -20,103 +21,82 @@ export const sendEmail = async ({ to, subject, html, text }) => {
     return { success: false, message: 'SMTP not configured' };
   }
 
-  return new Promise((resolve) => {
-    let step = 0;
-    const socket = tls.connect(port, host, { timeout: 8000 }, () => {
-      // Socket connected
+  try {
+    const transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure: port === 465,
+      auth: { user, pass },
+      tls: {
+        rejectUnauthorized: false,
+      },
     });
 
-    socket.setEncoding('utf8');
-
-    const finish = (result) => {
-      try {
-        socket.write('QUIT\r\n');
-        socket.end();
-      } catch {}
-      resolve(result);
-    };
-
-    let buffer = '';
-    socket.on('data', (chunk) => {
-      buffer += chunk;
-      const lines = buffer.split('\r\n').filter(Boolean);
-      const lastLine = lines[lines.length - 1] || '';
-
-      // Check if SMTP response block has finished (3 digits followed by a space)
-      const match = lastLine.match(/^(\d{3})\s/);
-      if (!match) return; // Incomplete response, wait for more data
-
-      const code = match[1];
-      buffer = ''; // Reset buffer for next round
-
-      if (code.startsWith('4') || code.startsWith('5')) {
-        console.warn(`⚠️ [SMTP ERROR] Server returned: ${lastLine}`);
-        return finish({ success: false, message: lastLine });
-      }
-
-      if (step === 0 && code === '220') {
-        step = 1;
-        socket.write('EHLO localhost\r\n');
-      } else if (step === 1 && code === '250') {
-        step = 2;
-        socket.write('AUTH LOGIN\r\n');
-      } else if (step === 2 && code === '334') {
-        step = 3;
-        socket.write(Buffer.from(user).toString('base64') + '\r\n');
-      } else if (step === 3 && code === '334') {
-        step = 4;
-        socket.write(Buffer.from(pass).toString('base64') + '\r\n');
-      } else if (step === 4 && code === '235') {
-        step = 5;
-        socket.write(`MAIL FROM:<${from}>\r\n`);
-      } else if (step === 5 && code === '250') {
-        step = 6;
-        socket.write(`RCPT TO:<${to}>\r\n`);
-      } else if (step === 6 && code === '250') {
-        step = 7;
-        socket.write('DATA\r\n');
-      } else if (step === 7 && code === '354') {
-        step = 8;
-        const boundary = '----=_Part_' + Date.now();
-        const emailHeaders = [
-          `From: "AURA Studio" <${from}>`,
-          `To: <${to}>`,
-          `Subject: =?UTF-8?B?${Buffer.from(subject).toString('base64')}?=`,
-          'MIME-Version: 1.0',
-          `Content-Type: multipart/alternative; boundary="${boundary}"`,
-          '',
-          `--${boundary}`,
-          'Content-Type: text/plain; charset=UTF-8',
-          '',
-          text || '',
-          '',
-          `--${boundary}`,
-          'Content-Type: text/html; charset=UTF-8',
-          '',
-          html || text || '',
-          '',
-          `--${boundary}--`,
-          '',
-          '.',
-          '',
-        ].join('\r\n');
-
-        socket.write(emailHeaders);
-      } else if (step === 8 && code === '250') {
-        console.log(`✉️ [SMTP SUCCESS] Đã gửi email tới "${to}" thành công!`);
-        finish({ success: true });
-      }
+    const info = await transporter.sendMail({
+      from: `"AURA Studio" <${from}>`,
+      to,
+      subject,
+      text,
+      html,
     });
 
-    socket.on('error', (err) => {
-      console.warn('⚠️ [SMTP Connection Error]:', err.message);
-      finish({ success: false, message: err.message });
-    });
+    console.log(`✉️ [SMTP SUCCESS] Đã gửi email tới "${to}" thành công! (ID: ${info.messageId})`);
+    return { success: true, messageId: info.messageId };
+  } catch (err) {
+    console.warn(`⚠️ [SMTP ERROR] Gửi email thất bại: ${err.message}`);
+    return { success: false, message: err.message };
+  }
+};
 
-    socket.on('timeout', () => {
-      socket.destroy();
-      finish({ success: false, message: 'SMTP connection timed out' });
-    });
+/**
+ * Send 2FA Two-Factor Authentication OTP Email Template
+ */
+export const sendTwoFactorOtpEmail = async (toEmail, otp, userName = 'Khách hàng') => {
+  console.log(`\n======================================================`);
+  console.log(`🔐 [2FA SECURITY SHIELD] GỬI MÃ OTP 2 LỚP ĐĂNG NHẬP:`);
+  console.log(`👤 Người nhận: ${userName} <${toEmail}>`);
+  console.log(`🔑 Mã OTP 6 số: ${otp} (Hiệu lực: 5 phút)`);
+  console.log(`======================================================\n`);
+
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #090a0f; color: #f8fafc; padding: 40px 20px; border-radius: 16px; max-width: 540px; margin: 0 auto; border: 1px solid #27272a;">
+      <div style="text-align: center; margin-bottom: 24px;">
+        <h1 style="color: #facc15; font-size: 24px; margin: 0; letter-spacing: 1px;">⚡ AURA STUDIO</h1>
+        <p style="color: #94a3b8; font-size: 13px; margin: 4px 0 0;">Hệ Thống Xác Thực Bảo Mật Đa Lớp (2FA)</p>
+      </div>
+      <div style="background: #12141c; padding: 28px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.08);">
+        <h2 style="font-size: 18px; color: #ffffff; margin-top: 0;">
+          🛡️ Mã Xác Minh Bảo Mật Đăng Nhập
+        </h2>
+        <p style="color: #cbd5e1; font-size: 14px; line-height: 1.6;">
+          Xin chào <strong>${userName}</strong>,<br>
+          Hệ thống bảo vệ AURA Shield phát hiện một yêu cầu đăng nhập vào tài khoản của bạn. Vui lòng nhập mã bảo mật 6 số dưới đây để hoàn tất đăng nhập:
+        </p>
+        <div style="text-align: center; margin: 28px 0;">
+          <div style="display: inline-block; font-family: monospace; font-size: 36px; font-weight: 900; letter-spacing: 10px; color: #000; background: linear-gradient(135deg, #facc15 0%, #f59e0b 100%); padding: 14px 28px; border-radius: 10px; box-shadow: 0 8px 25px rgba(250, 204, 21, 0.4);">
+            ${otp}
+          </div>
+        </div>
+        <div style="background: rgba(239, 68, 68, 0.08); border-left: 3px solid #ef4444; padding: 10px 14px; border-radius: 4px; margin-bottom: 16px;">
+          <p style="color: #f87171; font-size: 12px; margin: 0; line-height: 1.5;">
+            ⚠️ Mã này có hiệu lực trong <strong>5 phút</strong>. Tuyệt đối không chia sẻ mã này cho bất kỳ ai, kể cả nhân viên AURA Studio.
+          </p>
+        </div>
+        <p style="color: #64748b; font-size: 11px; line-height: 1.5; margin-bottom: 0;">
+          Nếu bạn không thực hiện yêu cầu đăng nhập này, vui lòng đổi mật khẩu ngay lập tức để bảo vệ tài khoản.
+        </p>
+      </div>
+      <div style="text-align: center; margin-top: 20px; color: #64748b; font-size: 11px;">
+        © 2026 AURA STUDIO Inc. All rights reserved.
+      </div>
+    </div>
+  `;
+
+  return sendEmail({
+    to: toEmail,
+    subject: `[AURA Studio] Mã OTP xác thực 2 lớp: ${otp}`,
+    text: `Mã OTP xác thực 2 lớp AURA Studio của bạn là: ${otp} (Hiệu lực: 5 phút).`,
+    html,
   });
 };
 

@@ -133,7 +133,8 @@ export const authRateLimiter = (maxAttempts = 10, windowMs = 60000) => {
     }
 
     const now = Date.now();
-    const timestamps = authRateTracker.get(ip) || [];
+    const endpointKey = `${ip}:${req.baseUrl || ''}${req.path || ''}`;
+    const timestamps = authRateTracker.get(endpointKey) || [];
     const recent = timestamps.filter((t) => now - t < windowMs);
 
     if (recent.length >= maxAttempts) {
@@ -151,7 +152,7 @@ export const authRateLimiter = (maxAttempts = 10, windowMs = 60000) => {
     }
 
     recent.push(now);
-    authRateTracker.set(ip, recent);
+    authRateTracker.set(endpointKey, recent);
     next();
   };
 };

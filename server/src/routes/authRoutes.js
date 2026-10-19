@@ -16,6 +16,9 @@ import {
   logoutAllDevices,
   getMyVouchers,
   getMyReviewsSummary,
+  verifyTwoFactor,
+  resendTwoFactor,
+  toggleTwoFactor,
 } from '../controllers/authController.js';
 import { protect } from '../middleware/auth.js';
 import { authRateLimiter } from '../middleware/securityShield.js';
@@ -28,6 +31,11 @@ router.post('/login', authRateLimiter(10, 60000), login);
 router.post('/oauth', authRateLimiter(15, 60000), oauthLogin);
 router.post('/forgot-password', authRateLimiter(5, 60000), forgotPassword);
 router.post('/reset-password', authRateLimiter(5, 60000), resetPassword);
+
+// Two-Factor Authentication (2FA) endpoints
+router.post('/verify-2fa', authRateLimiter(10, 60000), verifyTwoFactor);
+router.post('/resend-2fa', authRateLimiter(5, 60000), resendTwoFactor);
+router.put('/toggle-2fa', protect, toggleTwoFactor);
 
 // Authenticated user profile & wishlist
 router.get('/profile', protect, getProfile);

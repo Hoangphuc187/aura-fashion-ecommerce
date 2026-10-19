@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, Lock, Mail, User as UserIcon, Phone, Shield, Sparkles, Check, ArrowRight, Eye, EyeOff, KeyRound, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Lock, Mail, User as UserIcon, Phone, Shield, Sparkles, Check, ArrowRight, Eye, EyeOff, KeyRound, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
@@ -14,6 +14,8 @@ export const AuthModal = () => {
     loginWithOAuth,
     loginAsDemoCustomer,
     loginAsDemoAdmin,
+    verify2FA,
+    resend2FA,
   } = useAuth();
   const { addToast } = useToast();
 
@@ -37,12 +39,28 @@ export const AuthModal = () => {
   const [showForgotNewPassword, setShowForgotNewPassword] = useState(false);
   const [forgotStep, setForgotStep] = useState(1); // 1: send OTP, 2: verify & reset
 
+  // Two-Factor Authentication (2FA) states
+  const [twoFactorData, setTwoFactorData] = useState({ tempToken: '', emailMasked: '' });
+  const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
+  const [twoFactorCountdown, setTwoFactorCountdown] = useState(300);
+
   const [registerForm, setRegisterForm] = useState({
     name: '',
     email: '',
     password: '',
     phone: '',
   });
+
+  // 2FA Countdown effect
+  useEffect(() => {
+    let timer;
+    if (authModalTab === '2fa' && twoFactorCountdown > 0) {
+      timer = setInterval(() => {
+        setTwoFactorCountdown((prev) => (prev > 0 ? prev - 1 : 0));
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [authModalTab, twoFactorCountdown]);
 
   if (!authModalOpen) return null;
 
@@ -98,7 +116,101 @@ export const AuthModal = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      await login(loginForm.email, loginForm.password);
+      const res = await login(loginForm.email, loginForm.password);
+      if (res && res.require2FA) {
+        setTwoFactorData({
+          tempToken: res.tempToken,
+          emailMasked: res.emailMasked,
+        });
+        setOtpDigits(['', '', '', '', '', '']);
+        setTwoFactorCountdown(300);
+        setAuthModalTab('2fa');
+        setTimeout(() => {
+          document.getElementById('otp-digit-0')?.focus();
+        }, 150);
+      }
+    } catch {
+      // error handled in context
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOtpDigitChange = (index, value) => {
+    const cleanVal = value.replace(/\D/g, '');
+    if (!cleanVal && value !== '') return;
+
+    const newDigits = [...otpDigits];
+
+    // Check if user pasted full code
+    if (cleanVal.length > 1) {
+      const pasted = cleanVal.slice(0, 6).split('');
+      for (let i = 0; i < 6; i++) {
+        newDigits[i] = pasted[i] || '';
+      }
+      setOtpDigits(newDigits);
+      const nextIdx = Math.min(pasted.length, 5);
+      document.getElementById(`otp-digit-${nextIdx}`)?.focus();
+      if (pasted.length === 6) {
+        executeVerify2FA(twoFactorData.tempToken, pasted.join(''));
+      }
+      return;
+    }
+
+    newDigits[index] = cleanVal;
+    setOtpDigits(newDigits);
+
+    // Auto-focus next input
+    if (cleanVal && index < 5) {
+      document.getElementById(`otp-digit-${index + 1}`)?.focus();
+    }
+
+    // Auto-verify if all 6 digits are typed
+    if (newDigits.every((d) => d !== '') && newDigits.join('').length === 6) {
+      executeVerify2FA(twoFactorData.tempToken, newDigits.join(''));
+    }
+  };
+
+  const handleOtpKeyDown = (index, e) => {
+    if (e.key === 'Backspace' && !otpDigits[index] && index > 0) {
+      document.getElementById(`otp-digit-${index - 1}`)?.focus();
+    }
+  };
+
+  const executeVerify2FA = async (tempToken, otp) => {
+    setLoading(true);
+    try {
+      await verify2FA(tempToken, otp);
+    } catch {
+      // error handled in context
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerify2FASubmit = async (e) => {
+    if (e) e.preventDefault();
+    const fullOtp = otpDigits.join('');
+    if (fullOtp.length !== 6) {
+      addToast('Vui lòng nhập đủ 6 chữ số mã OTP', 'error');
+      return;
+    }
+    await executeVerify2FA(twoFactorData.tempToken, fullOtp);
+  };
+
+  const handleResend2FA = async () => {
+    if (twoFactorCountdown > 240) {
+      addToast('Vui lòng đợi 60 giây trước khi yêu cầu gửi lại mã', 'info');
+      return;
+    }
+    setLoading(true);
+    try {
+      await resend2FA(twoFactorData.tempToken);
+      setTwoFactorCountdown(300);
+      setOtpDigits(['', '', '', '', '', '']);
+      setTimeout(() => {
+        document.getElementById('otp-digit-0')?.focus();
+      }, 100);
     } catch {
       // error handled in context
     } finally {
@@ -210,152 +322,156 @@ export const AuthModal = () => {
           <X size={18} />
         </button>
 
-        {/* Modal Header */}
-        <div style={{ textAlign: 'center', marginBottom: '22px' }}>
-          <h3
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: '1.5rem',
-              fontWeight: 800,
-              color: '#fff',
-            }}
-          >
-            Chào Mừng Đến AURA
-          </h3>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.84rem', marginTop: '4px' }}>
-            Đăng nhập để lưu giỏ hàng, theo dõi đơn và nhận ưu đãi độc quyền.
-          </p>
-        </div>
+        {/* Modal Header & OAuth Buttons (only visible in login / register tabs) */}
+        {authModalTab !== '2fa' && authModalTab !== 'forgot' && (
+          <>
+            <div style={{ textAlign: 'center', marginBottom: '22px' }}>
+              <h3
+                style={{
+                  fontFamily: 'var(--font-display)',
+                  fontSize: '1.5rem',
+                  fontWeight: 800,
+                  color: '#fff',
+                }}
+              >
+                Chào Mừng Đến AURA
+              </h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.84rem', marginTop: '4px' }}>
+                Đăng nhập để lưu giỏ hàng, theo dõi đơn và nhận ưu đãi độc quyền.
+              </p>
+            </div>
 
-        {/* ================= OAUTH 2.0 BUTTONS (FEATURED) ================= */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
-          {/* Google OAuth 2.0 */}
-          <button
-            type="button"
-            onClick={() => setGooglePromptOpen(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '12px',
-              padding: '12px 18px',
-              borderRadius: '12px',
-              background: '#ffffff',
-              color: '#1f2937',
-              border: 'none',
-              fontWeight: 700,
-              fontSize: '0.92rem',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-2px)')}
-            onMouseLeave={(e) => (e.currentTarget.style.transform = 'none')}
-          >
-            {/* Official Google G Logo */}
-            <svg width="20" height="20" viewBox="0 0 24 24">
-              <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"/>
-              <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
-              <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.17 0 9.99 0 12s.45 3.83 1.25 5.42l4.03-3.15z"/>
-              <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
-            </svg>
-            <span>Đăng nhập với Google</span>
-          </button>
+            {/* ================= OAUTH 2.0 BUTTONS (FEATURED) ================= */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
+              {/* Google OAuth 2.0 */}
+              <button
+                type="button"
+                onClick={() => setGooglePromptOpen(true)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '12px',
+                  padding: '12px 18px',
+                  borderRadius: '12px',
+                  background: '#ffffff',
+                  color: '#1f2937',
+                  border: 'none',
+                  fontWeight: 700,
+                  fontSize: '0.92rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-2px)')}
+                onMouseLeave={(e) => (e.currentTarget.style.transform = 'none')}
+              >
+                {/* Official Google G Logo */}
+                <svg width="20" height="20" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"/>
+                  <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
+                  <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.17 0 9.99 0 12s.45 3.83 1.25 5.42l4.03-3.15z"/>
+                  <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+                </svg>
+                <span>Đăng nhập với Google</span>
+              </button>
 
-          {/* Facebook Sign In */}
-          <button
-            type="button"
-            onClick={() => setFacebookPromptOpen(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '12px',
-              padding: '11px 18px',
-              borderRadius: '12px',
-              background: '#1877F2',
-              border: '1px solid #1877F2',
-              color: '#fff',
-              fontWeight: 600,
-              fontSize: '0.88rem',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              boxShadow: '0 4px 15px rgba(24, 119, 242, 0.35)',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-2px)')}
-            onMouseLeave={(e) => (e.currentTarget.style.transform = 'none')}
-          >
-            {/* Facebook Official SVG */}
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="#ffffff">
-              <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-            </svg>
-            <span>Đăng nhập với Facebook</span>
-          </button>
-        </div>
+              {/* Facebook Sign In */}
+              <button
+                type="button"
+                onClick={() => setFacebookPromptOpen(true)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '12px',
+                  padding: '11px 18px',
+                  borderRadius: '12px',
+                  background: '#1877F2',
+                  border: '1px solid #1877F2',
+                  color: '#fff',
+                  fontWeight: 600,
+                  fontSize: '0.88rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  boxShadow: '0 4px 15px rgba(24, 119, 242, 0.35)',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-2px)')}
+                onMouseLeave={(e) => (e.currentTarget.style.transform = 'none')}
+              >
+                {/* Facebook Official SVG */}
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="#ffffff">
+                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                </svg>
+                <span>Đăng nhập với Facebook</span>
+              </button>
+            </div>
 
-        {/* Divider */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            marginBottom: '20px',
-            color: 'var(--text-dim)',
-            fontSize: '0.78rem',
-            textTransform: 'uppercase',
-            letterSpacing: '1px',
-          }}
-        >
-          <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.08)' }} />
-          <span>Hoặc dùng tài khoản mật khẩu</span>
-          <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.08)' }} />
-        </div>
+            {/* Divider */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                marginBottom: '20px',
+                color: 'var(--text-dim)',
+                fontSize: '0.78rem',
+                textTransform: 'uppercase',
+                letterSpacing: '1px',
+              }}
+            >
+              <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.08)' }} />
+              <span>Hoặc dùng tài khoản mật khẩu</span>
+              <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.08)' }} />
+            </div>
 
-        {/* Tab switch */}
-        <div
-          style={{
-            display: 'flex',
-            background: 'rgba(255, 255, 255, 0.05)',
-            borderRadius: '12px',
-            padding: '4px',
-            marginBottom: '20px',
-          }}
-        >
-          <button
-            onClick={() => setAuthModalTab('login')}
-            style={{
-              flex: 1,
-              padding: '9px',
-              borderRadius: '8px',
-              background: authModalTab === 'login' ? 'rgba(250, 204, 21, 0.2)' : 'transparent',
-              color: authModalTab === 'login' ? '#facc15' : 'var(--text-muted)',
-              border: authModalTab === 'login' ? '1px solid rgba(250,204,21,0.4)' : 'none',
-              fontWeight: 700,
-              fontSize: '0.86rem',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-            }}
-          >
-            Đăng Nhập
-          </button>
-          <button
-            onClick={() => setAuthModalTab('register')}
-            style={{
-              flex: 1,
-              padding: '9px',
-              borderRadius: '8px',
-              background: authModalTab === 'register' ? 'rgba(250, 204, 21, 0.2)' : 'transparent',
-              color: authModalTab === 'register' ? '#facc15' : 'var(--text-muted)',
-              border: authModalTab === 'register' ? '1px solid rgba(250,204,21,0.4)' : 'none',
-              fontWeight: 700,
-              fontSize: '0.86rem',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-            }}
-          >
-            Đăng Ký
-          </button>
-        </div>
+            {/* Tab switch */}
+            <div
+              style={{
+                display: 'flex',
+                background: 'rgba(255, 255, 255, 0.05)',
+                borderRadius: '12px',
+                padding: '4px',
+                marginBottom: '20px',
+              }}
+            >
+              <button
+                onClick={() => setAuthModalTab('login')}
+                style={{
+                  flex: 1,
+                  padding: '9px',
+                  borderRadius: '8px',
+                  background: authModalTab === 'login' ? 'rgba(250, 204, 21, 0.2)' : 'transparent',
+                  color: authModalTab === 'login' ? '#facc15' : 'var(--text-muted)',
+                  border: authModalTab === 'login' ? '1px solid rgba(250,204,21,0.4)' : 'none',
+                  fontWeight: 700,
+                  fontSize: '0.86rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+              >
+                Đăng Nhập
+              </button>
+              <button
+                onClick={() => setAuthModalTab('register')}
+                style={{
+                  flex: 1,
+                  padding: '9px',
+                  borderRadius: '8px',
+                  background: authModalTab === 'register' ? 'rgba(250, 204, 21, 0.2)' : 'transparent',
+                  color: authModalTab === 'register' ? '#facc15' : 'var(--text-muted)',
+                  border: authModalTab === 'register' ? '1px solid rgba(250,204,21,0.4)' : 'none',
+                  fontWeight: 700,
+                  fontSize: '0.86rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+              >
+                Đăng Ký
+              </button>
+            </div>
+          </>
+        )}
 
         {/* LOGIN FORM */}
         {authModalTab === 'login' ? (
@@ -654,6 +770,186 @@ export const AuthModal = () => {
               {loading ? 'Đang tạo tài khoản...' : 'Tạo Tài Khoản Ngay'}
             </button>
           </form>
+        ) : authModalTab === '2fa' ? (
+          /* TWO-FACTOR AUTHENTICATION (2FA) SCREEN */
+          <div>
+            <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+              <div
+                style={{
+                  width: '56px',
+                  height: '56px',
+                  borderRadius: '50%',
+                  background: 'radial-gradient(circle, rgba(250, 204, 21, 0.25) 0%, rgba(250, 204, 21, 0.05) 70%)',
+                  border: '1px solid rgba(250, 204, 21, 0.4)',
+                  color: '#facc15',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 14px',
+                  boxShadow: '0 0 25px rgba(250, 204, 21, 0.25)',
+                }}
+              >
+                <Shield size={28} />
+              </div>
+              <h4
+                style={{
+                  fontFamily: 'var(--font-display)',
+                  fontSize: '1.35rem',
+                  fontWeight: 800,
+                  color: '#fff',
+                  marginBottom: '6px',
+                }}
+              >
+                Xác Thực 2 Lớp (2FA)
+              </h4>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.84rem', margin: 0, lineHeight: 1.5 }}>
+                Mã bảo mật gồm 6 chữ số đã được gửi qua email đến:
+              </p>
+              <div
+                style={{
+                  display: 'inline-block',
+                  background: 'rgba(250, 204, 21, 0.1)',
+                  border: '1px solid rgba(250, 204, 21, 0.3)',
+                  color: '#facc15',
+                  padding: '4px 12px',
+                  borderRadius: '9999px',
+                  fontSize: '0.84rem',
+                  fontWeight: 700,
+                  marginTop: '8px',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                {twoFactorData.emailMasked || loginForm.email}
+              </div>
+            </div>
+
+            <form onSubmit={handleVerify2FASubmit}>
+              {/* 6 Digit Input Group */}
+              <div style={{ marginBottom: '22px' }}>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#94a3b8', textAlign: 'center', marginBottom: '12px' }}>
+                  Nhập mã xác thực 6 số (hoặc Dán mã):
+                </label>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
+                  {otpDigits.map((digit, index) => (
+                    <input
+                      key={index}
+                      id={`otp-digit-${index}`}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={digit}
+                      onChange={(e) => handleOtpDigitChange(index, e.target.value)}
+                      onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                      autoFocus={index === 0}
+                      style={{
+                        width: '46px',
+                        height: '54px',
+                        borderRadius: '12px',
+                        background: digit ? 'rgba(250, 204, 21, 0.12)' : 'rgba(255, 255, 255, 0.05)',
+                        border: digit ? '2px solid #facc15' : '1px solid rgba(255, 255, 255, 0.15)',
+                        color: '#fff',
+                        fontSize: '1.4rem',
+                        fontWeight: 800,
+                        textAlign: 'center',
+                        outline: 'none',
+                        transition: 'all 0.2s',
+                        boxShadow: digit ? '0 0 12px rgba(250, 204, 21, 0.25)' : 'none',
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Expiration Timer & Resend */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: '22px',
+                  padding: '10px 14px',
+                  background: 'rgba(255, 255, 255, 0.02)',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(255, 255, 255, 0.06)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: '#94a3b8' }}>
+                  <RefreshCw size={13} />
+                  <span>
+                    {twoFactorCountdown > 0 ? (
+                      <>
+                        Mã hết hạn sau:{' '}
+                        <strong style={{ color: twoFactorCountdown < 60 ? '#f87171' : '#facc15' }}>
+                          {String(Math.floor(twoFactorCountdown / 60)).padStart(2, '0')}:
+                          {String(twoFactorCountdown % 60).padStart(2, '0')}
+                        </strong>
+                      </>
+                    ) : (
+                      <span style={{ color: '#f87171', fontWeight: 600 }}>Mã đã hết hạn</span>
+                    )}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleResend2FA}
+                  disabled={loading || twoFactorCountdown > 240}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: twoFactorCountdown <= 240 ? '#facc15' : '#64748b',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    cursor: twoFactorCountdown <= 240 ? 'pointer' : 'not-allowed',
+                    textDecoration: twoFactorCountdown <= 240 ? 'underline' : 'none',
+                    padding: 0,
+                  }}
+                >
+                  Gửi lại mã OTP
+                </button>
+              </div>
+
+              {/* Verify Button */}
+              <button
+                type="submit"
+                disabled={loading || otpDigits.join('').length !== 6}
+                className="btn-primary"
+                style={{
+                  width: '100%',
+                  padding: '13px',
+                  borderRadius: '12px',
+                  fontSize: '0.94rem',
+                  fontWeight: 700,
+                  marginBottom: '14px',
+                  boxShadow: '0 8px 25px rgba(250, 204, 21, 0.3)',
+                  cursor: otpDigits.join('').length === 6 ? 'pointer' : 'not-allowed',
+                  opacity: otpDigits.join('').length === 6 ? 1 : 0.6,
+                }}
+              >
+                {loading ? 'Đang xác thực...' : 'Xác Nhận & Đăng Nhập'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthModalTab('login');
+                  setOtpDigits(['', '', '', '', '', '']);
+                }}
+                style={{
+                  width: '100%',
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                  padding: '8px',
+                  textAlign: 'center',
+                }}
+              >
+                ← Đăng nhập bằng tài khoản khác
+              </button>
+            </form>
+          </div>
         ) : (
           /* FORGOT PASSWORD FORM */
           <div>

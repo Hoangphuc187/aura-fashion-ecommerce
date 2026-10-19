@@ -109,6 +109,18 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    twoFactorEnabled: {
+      type: Boolean,
+      default: false,
+    },
+    twoFactorOtp: {
+      type: String,
+      default: null,
+    },
+    twoFactorOtpExpires: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,

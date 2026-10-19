@@ -30,12 +30,13 @@ import { useCart } from '../context/CartContext';
 import { useToast } from '../context/ToastContext';
 
 export const CustomerAccountModal = ({ isOpen, onClose, initialTab = 'profile', onOpenOrderTracking }) => {
-  const { user, token, logout, updateUser, refreshUserProfile } = useAuth();
+  const { user, token, logout, updateUser, refreshUserProfile, toggle2FA } = useAuth();
   const { addToCart } = useCart();
   const { addToast } = useToast();
 
   const [activeTab, setActiveTab] = useState(initialTab);
   const [loading, setLoading] = useState(false);
+  const [twoFactorLoading, setTwoFactorLoading] = useState(false);
 
   // Tab: Profile Form
   const [profileForm, setProfileForm] = useState({
@@ -396,7 +397,19 @@ export const CustomerAccountModal = ({ isOpen, onClose, initialTab = 'profile', 
     }
   };
 
-  // 6. LOGOUT ALL SESSIONS
+  // 6. TOGGLE 2FA (EMAIL OTP)
+  const handleToggle2FA = async () => {
+    setTwoFactorLoading(true);
+    try {
+      await toggle2FA(!user?.twoFactorEnabled);
+    } catch {
+      // error handled in context
+    } finally {
+      setTwoFactorLoading(false);
+    }
+  };
+
+  // 7. LOGOUT ALL SESSIONS
   const handleLogoutAll = async () => {
     if (!window.confirm('Bạn có chắc muốn đăng xuất khỏi tất cả các thiết bị? Phiên đăng nhập hiện tại cũng sẽ kết thúc.')) {
       return;
@@ -1834,6 +1847,101 @@ export const CustomerAccountModal = ({ isOpen, onClose, initialTab = 'profile', 
                   <p style={{ margin: 0, fontSize: '0.82rem', color: '#94a3b8' }}>
                     Quản lý mật khẩu và các thiết bị đang đăng nhập để giữ an toàn tuyệt đối.
                   </p>
+                </div>
+
+                {/* 2FA (Two-Factor Authentication) Box */}
+                <div
+                  style={{
+                    background: user?.twoFactorEnabled
+                      ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%)'
+                      : 'linear-gradient(135deg, rgba(250, 204, 21, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%)',
+                    border: user?.twoFactorEnabled
+                      ? '1px solid rgba(16, 185, 129, 0.3)'
+                      : '1px solid rgba(250, 204, 21, 0.25)',
+                    borderRadius: '16px',
+                    padding: '20px',
+                    marginBottom: '24px',
+                    position: 'relative',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+                    <div style={{ flex: 1, minWidth: '240px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                        <div
+                          style={{
+                            width: '34px',
+                            height: '34px',
+                            borderRadius: '10px',
+                            background: user?.twoFactorEnabled ? 'rgba(16, 185, 129, 0.15)' : 'rgba(250, 204, 21, 0.15)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <Shield size={18} color={user?.twoFactorEnabled ? '#10b981' : '#facc15'} />
+                        </div>
+                        <div>
+                          <h4 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 700, color: '#fff' }}>
+                            Xác Thực 2 Lớp (2FA qua Email)
+                          </h4>
+                        </div>
+                        <span
+                          style={{
+                            background: user?.twoFactorEnabled ? 'rgba(16, 185, 129, 0.2)' : 'rgba(148, 163, 184, 0.15)',
+                            color: user?.twoFactorEnabled ? '#34d399' : '#94a3b8',
+                            border: `1px solid ${user?.twoFactorEnabled ? 'rgba(16, 185, 129, 0.4)' : 'rgba(148, 163, 184, 0.3)'}`,
+                            fontSize: '0.7rem',
+                            fontWeight: 800,
+                            padding: '3px 8px',
+                            borderRadius: '9999px',
+                            letterSpacing: '0.5px',
+                          }}
+                        >
+                          {user?.twoFactorEnabled ? 'ĐANG BẢO VỆ' : 'CHƯA BẬT'}
+                        </span>
+                      </div>
+
+                      <p style={{ margin: '0 0 10px', fontSize: '0.8rem', color: '#94a3b8', lineHeight: 1.5 }}>
+                        Bảo vệ tài khoản an toàn tuyệt đối trước nguy cơ lộ mật khẩu. Khi bật, hệ thống sẽ tự động gửi mã OTP 6 số đến email <strong style={{ color: '#fff' }}>{user?.email}</strong> mỗi lần bạn đăng nhập.
+                      </p>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: user?.twoFactorEnabled ? '#34d399' : '#e2e8f0' }}>
+                        <CheckCircle2 size={13} color={user?.twoFactorEnabled ? '#10b981' : '#94a3b8'} />
+                        <span>Mã OTP tự hủy sau 5 phút và chỉ sử dụng được 1 lần duy nhất</span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleToggle2FA}
+                      disabled={twoFactorLoading}
+                      style={{
+                        padding: '10px 18px',
+                        borderRadius: '10px',
+                        background: user?.twoFactorEnabled ? 'rgba(239, 68, 68, 0.12)' : '#facc15',
+                        color: user?.twoFactorEnabled ? '#f87171' : '#000',
+                        border: user?.twoFactorEnabled ? '1px solid rgba(239, 68, 68, 0.3)' : 'none',
+                        fontWeight: 700,
+                        fontSize: '0.82rem',
+                        cursor: twoFactorLoading ? 'not-allowed' : 'pointer',
+                        transition: 'all 0.2s',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      <Shield size={15} />
+                      <span>
+                        {twoFactorLoading
+                          ? 'Đang xử lý...'
+                          : user?.twoFactorEnabled
+                          ? 'Tắt bảo mật 2 lớp'
+                          : 'Bật xác thực 2 lớp ngay'}
+                      </span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Change Password Box */}

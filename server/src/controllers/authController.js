@@ -5,7 +5,7 @@ import Coupon from '../models/Coupon.js';
 import Product from '../models/Product.js';
 import { logSecurityEvent, SecurityEvent } from '../utils/auditLogger.js';
 import { isValidEmail, validatePasswordStrength } from '../middleware/sanitize.js';
-import { sendPasswordResetEmail } from '../services/emailService.js';
+import { sendPasswordResetEmail, sendTwoFactorOtpEmail } from '../services/emailService.js';
 
 const getJwtSecret = () => {
   return process.env.JWT_SECRET || 'aura_fallback_dev_secret_key_2026';
@@ -157,11 +157,46 @@ export const login = async (req, res) => {
       });
     }
 
-    // 3. Reset lockout counters on successful login
+    // 3. Reset lockout counters on successful password check
     if (user.loginAttempts > 0 || user.lockUntil) {
       user.loginAttempts = 0;
       user.lockUntil = null;
       await user.save();
+    }
+
+    // 4. Two-Factor Authentication (2FA) Check
+    if (user.twoFactorEnabled) {
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      user.twoFactorOtp = otp;
+      user.twoFactorOtpExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+      await user.save();
+
+      const tempToken = jwt.sign(
+        { id: user._id, type: '2fa_pending' },
+        getJwtSecret(),
+        { expiresIn: '5m' }
+      );
+
+      // Dispatch 2FA OTP Email
+      sendTwoFactorOtpEmail(user.email, otp, user.name).catch((err) => {
+        console.warn('Could not dispatch 2FA email:', err?.message || err);
+      });
+
+      const emailParts = user.email.split('@');
+      const namePart = emailParts[0];
+      const maskedName =
+        namePart.length <= 3
+          ? namePart[0] + '**'
+          : namePart.slice(0, 2) + '*'.repeat(Math.max(2, namePart.length - 3)) + namePart.slice(-1);
+      const maskedEmail = `${maskedName}@${emailParts[1]}`;
+
+      return res.json({
+        success: true,
+        require2FA: true,
+        tempToken,
+        emailMasked: maskedEmail,
+        message: 'Mã xác thực 2 lớp (OTP) đã được gửi đến email của bạn. Vui lòng kiểm tra hộp thư!',
+      });
     }
 
     logSecurityEvent(SecurityEvent.LOGIN_SUCCESS, req, {
@@ -181,6 +216,7 @@ export const login = async (req, res) => {
         avatar: user.avatar,
         phone: user.phone,
         address: user.address,
+        twoFactorEnabled: user.twoFactorEnabled || false,
         token: generateToken(user._id),
       },
     });
@@ -834,3 +870,153 @@ export const resetPassword = async (req, res) => {
     res.status(500).json({ success: false, message: 'Lỗi thực hiện đặt lại mật khẩu' });
   }
 };
+
+/**
+ * Verify Two-Factor Authentication OTP
+ */
+export const verifyTwoFactor = async (req, res) => {
+  try {
+    const { tempToken, otp } = req.body;
+    if (!tempToken || !otp) {
+      return res.status(400).json({ success: false, message: 'Vui lòng cung cấp mã OTP và phiên xác thực' });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(tempToken, getJwtSecret());
+    } catch (err) {
+      return res.status(401).json({
+        success: false,
+        message: 'Phiên xác thực đã hết hạn. Vui lòng đăng nhập lại.',
+      });
+    }
+
+    if (decoded.type !== '2fa_pending' || !decoded.id) {
+      return res.status(401).json({ success: false, message: 'Phiên xác thực không hợp lệ' });
+    }
+
+    const user = await User.findById(decoded.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Người dùng không tồn tại' });
+    }
+
+    const cleanOtp = String(otp).trim();
+    if (!user.twoFactorOtp || user.twoFactorOtp !== cleanOtp) {
+      return res.status(400).json({ success: false, message: 'Mã OTP không chính xác' });
+    }
+
+    if (!user.twoFactorOtpExpires || new Date() > new Date(user.twoFactorOtpExpires)) {
+      return res.status(400).json({ success: false, message: 'Mã OTP đã hết hạn (5 phút). Vui lòng yêu cầu mã mới.' });
+    }
+
+    // Clear 2FA OTP
+    user.twoFactorOtp = null;
+    user.twoFactorOtpExpires = null;
+    await user.save();
+
+    logSecurityEvent(SecurityEvent.LOGIN_SUCCESS, req, {
+      userId: user._id,
+      email: user.email,
+      role: user.role,
+      method: '2fa_verified',
+    });
+
+    res.json({
+      success: true,
+      message: 'Xác thực 2 lớp thành công. Chào mừng bạn trở lại!',
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        avatar: user.avatar,
+        phone: user.phone,
+        address: user.address,
+        twoFactorEnabled: user.twoFactorEnabled || false,
+        token: generateToken(user._id, user.tokenVersion || 0),
+      },
+    });
+  } catch (error) {
+    console.error('Verify 2FA error:', error);
+    res.status(500).json({ success: false, message: 'Lỗi máy chủ trong quá trình xác thực OTP' });
+  }
+};
+
+/**
+ * Resend Two-Factor Authentication OTP
+ */
+export const resendTwoFactor = async (req, res) => {
+  try {
+    const { tempToken } = req.body;
+    if (!tempToken) {
+      return res.status(400).json({ success: false, message: 'Thiếu thông tin phiên đăng nhập tạm thời' });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(tempToken, getJwtSecret());
+    } catch (err) {
+      return res.status(401).json({
+        success: false,
+        message: 'Phiên xác thực đã hết hạn. Vui lòng đăng nhập lại.',
+      });
+    }
+
+    if (decoded.type !== '2fa_pending' || !decoded.id) {
+      return res.status(401).json({ success: false, message: 'Phiên xác thực không hợp lệ' });
+    }
+
+    const user = await User.findById(decoded.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Người dùng không tồn tại' });
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.twoFactorOtp = otp;
+    user.twoFactorOtpExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 mins
+    await user.save();
+
+    // Dispatch 2FA OTP Email
+    sendTwoFactorOtpEmail(user.email, otp, user.name).catch((err) => {
+      console.warn('Could not dispatch 2FA email:', err?.message || err);
+    });
+
+    res.json({
+      success: true,
+      message: 'Mã xác thực OTP mới đã được gửi đến email của bạn!',
+    });
+  } catch (error) {
+    console.error('Resend 2FA error:', error);
+    res.status(500).json({ success: false, message: 'Lỗi gửi lại mã OTP' });
+  }
+};
+
+/**
+ * Toggle Two-Factor Authentication for authenticated user
+ */
+export const toggleTwoFactor = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Người dùng không tồn tại' });
+    }
+
+    const { enabled } = req.body;
+    user.twoFactorEnabled = typeof enabled === 'boolean' ? enabled : !user.twoFactorEnabled;
+    user.twoFactorOtp = null;
+    user.twoFactorOtpExpires = null;
+    await user.save();
+
+    res.json({
+      success: true,
+      twoFactorEnabled: user.twoFactorEnabled,
+      message: user.twoFactorEnabled
+        ? 'Đã kích hoạt xác thực 2 lớp (2FA) qua Email thành công!'
+        : 'Đã tắt xác thực 2 lớp (2FA).',
+    });
+  } catch (error) {
+    console.error('Toggle 2FA error:', error);
+    res.status(500).json({ success: false, message: 'Lỗi cập nhật cấu hình bảo mật 2 lớp' });
+  }
+};
+

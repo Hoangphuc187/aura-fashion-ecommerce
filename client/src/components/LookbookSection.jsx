@@ -141,6 +141,7 @@ export const LookbookSection = ({ products = [], onOpenProduct }) => {
 
   return (
     <section
+      className="offscreen-render-optimized"
       style={{
         maxWidth: '1360px',
         margin: '60px auto 40px',

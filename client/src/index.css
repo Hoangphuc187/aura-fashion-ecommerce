@@ -328,3 +328,16 @@ img {
   padding: 16px;
   animation: fadeIn 0.2s ease-out;
 }
+
+/* ================= PERFORMANCE & GPU ACCELERATION ================= */
+.offscreen-render-optimized {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 700px;
+}
+
+.gpu-accelerated {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: transform;
+}
+

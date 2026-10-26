@@ -48,6 +48,7 @@ export const FlashSaleBanner = ({ onShowSaleOnly }) => {
       }}
     >
       <div
+        className="gpu-accelerated"
         style={{
           background: 'linear-gradient(135deg, #181926 0%, #201815 50%, #151821 100%)',
           borderRadius: '20px',

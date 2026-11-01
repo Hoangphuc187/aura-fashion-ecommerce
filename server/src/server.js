@@ -148,14 +148,6 @@ app.all('/admin-portal', async (req, res) => {
           orders: orderCount,
           coupons: couponCount,
         },
-
-
-
-
-
-
-
-
       });
     }
 

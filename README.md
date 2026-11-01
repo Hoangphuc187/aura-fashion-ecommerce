@@ -154,21 +154,21 @@ Toàn bộ hình ảnh dưới đây được chụp trực tiếp từ hệ th�
   * **Transactional Stock Rollback**: Hoàn trả chính xác số lượng tồn kho `stockQuantity` về database cho từng sản phẩm và size.
   * **Transactional Coupon Rollback**: Giảm `usedCount` của mã giảm giá tương ứng để khách hàng khác có thể tiếp tục sử dụng.
   * **Ghi vết kiểm toán (Audit Trail)**: Ghi log sự kiện bảo mật `ORDER_EXPIRED`.
-  * **API Quét thủ công tức thì cho Admin**: Hỗ trợ endpoint `POST /api/orders/admin/trigger-expiry-check` (được bảo vệ bởi Stealth Admin Cloaking).
+  * **Quét thủ công tức thì cho Admin**: Hỗ trợ kích hoạt quét đơn hết hạn tức thì từ giao diện quản trị (được bảo vệ bởi Stealth Admin Cloaking).
 
 ---
 
 ### 2. ⚡ Đồng Bộ Hóa Thời Gian Thực Bằng Server-Sent Events (SSE) & Web Audio API
 * **Giải quyết bài toán trải nghiệm**: Loại bỏ hoàn toàn sự ức chế khi người dùng hoặc Quản trị viên phải liên tục ấn F5 để kiểm tra trạng thái mới. Chọn **Native SSE** thay vì WebSocket cồng kềnh giúp tối ưu tài nguyên, tương thích hoàn toàn kiến trúc nén Gzip và tự động hỗ trợ cơ chế Auto-Reconnect qua giao thức HTTP chuẩn.
 * **Cơ chế hoạt động**:
-  * **Kênh Admin Live Stream (`GET /api/realtime/admin?token=...`)**:
+  * **Kênh Admin Live Stream (Real-time SSE Dashboard)**:
     * Xác thực bảo mật phân quyền JWT Admin trực tiếp khi kết nối.
     * Khi khách đặt đơn mới hoặc hủy đơn: Bảng quản trị Admin **tự động cập nhật danh sách đơn và doanh thu ngay lập tức**.
     * **Âm thanh thông báo tự nhiên (Web Audio API Synthesizer)**: Phát chuông âm tần số cao "ting-ting" 587Hz & 880Hz mô phỏng chuông POS thu ngân mà không cần tải file `.mp3` ngoài.
     * Nhận thông báo đẩy pop-up khi có đơn hàng mới (`new_order`), đơn hủy do hết hạn (`order_expired`) hoặc ticket hỗ trợ mới (`new_ticket`).
     * Nút bấm **`⚡ Quét đơn quá hạn 15p`** cho phép Admin kích hoạt worker thủ công ngay lập tức.
     * Huy hiệu trạng thái kết nối `⚡ SSE Live Stream: Hoạt động` hiển thị trên thanh tiêu đề Admin.
-  * **Kênh Live Tracking Khách Hàng (`GET /api/realtime/order/:orderCode`)**:
+  * **Kênh Live Tracking Khách Hàng (Room Isolation)**:
     * Khách hàng tra cứu đơn hàng tự động kết nối vào phòng theo dõi riêng biệt (Room Isolation).
     * Khi Admin duyệt trạng thái (`Processing` ➔ `Shipping` ➔ `Delivered` ➔ `Cancelled`), timeline của khách hàng **nhảy nấc trạng thái tức thì** kèm thông báo Toast.
     * Tích hợp **đồng hồ đếm ngược 15:00** trực tiếp cho các đơn hàng chờ thanh toán online; khi hết giờ tự động chuyển trạng thái đã hủy.
@@ -188,7 +188,7 @@ Toàn bộ hình ảnh dưới đây được chụp trực tiếp từ hệ th�
 | **Tìm kiếm & Bộ lọc** | Lọc theo 6 danh mục, 5 size, thanh trượt giá, sắp xếp đa chiều | Client-side & Server query |
 | **Giỏ hàng & Đặt hàng** | Drawer trượt, freeship bar, áp dụng mã giảm giá, tự động điền địa chỉ | React Context & LocalStorage |
 | **Cổng thanh toán** | COD, MoMo QR/ATM (HMAC-SHA256), VNPay (HMAC-SHA512) | Sandbox API chuẩn bảo mật ngân hàng |
-| **Tra cứu đơn hàng Realtime** | Timeline vận chuyển live sync (SSE), đồng hồ đếm ngược 15:00, mã QR kiểm tra | Server-Sent Events `/api/realtime/order/:code` |
+| **Tra cứu đơn hàng Realtime** | Timeline vận chuyển live sync (SSE), đồng hồ đếm ngược 15:00, mã QR kiểm tra | Server-Sent Events (SSE Room Isolation) |
 | **Hỗ trợ & Live Chat** | FAQ Accordion, Tạo Ticket `#TK-XXXXXX`, Bot tư vấn AI 24/7 | MongoDB Collection `Ticket` & `FAQ` |
 | **Tài khoản cá nhân** | Hồ sơ, Sổ địa chỉ mặc định, Đơn mua 6 trạng thái, Đánh giá có ảnh, Kho voucher, Bảo mật đa thiết bị | JWT Authentication & Token Versioning |
 | **Admin Dashboard Realtime** | Auto-update doanh thu & đơn mới qua SSE, chuông báo Web Audio, biểu đồ phân tích | Aggregation Pipeline MongoDB & SSE Stream |
@@ -293,7 +293,7 @@ VNPAY_URL=https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
 ### 5. Truy cập hệ thống:
 * 🛍️ **Cửa hàng thời trang:** [http://localhost:3000](http://localhost:3000)
 * ⚙️ **Trang Quản Trị Hệ Thống (chỉ truy cập được khi đăng nhập tài khoản Admin):** [http://localhost:3000/admin](http://localhost:3000/admin)
-* 📚 **API Backend Server:** [http://localhost:5000](http://localhost:5000)
+* 📚 **Backend Engine Server:** [http://localhost:5000](http://localhost:5000) *(Stealth WAF Cloaking 404)*
 
 ---
 

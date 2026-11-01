@@ -2,70 +2,21 @@ import bcrypt from 'bcryptjs';
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
 import User from '../models/User.js';
+import { executeDashboardAnalyticsProcedure } from '../procedures/analyticsProcedure.js';
+import { ApiResponse } from '../utils/ApiResponse.js';
+import { logger } from '../config/logger.js';
 
+/**
+ * Admin: Get Dashboard Analytics via Database Stored Procedure
+ * Replaces high-memory JS loops with C++ native MongoDB $facet aggregation pipeline.
+ */
 export const getDashboardStats = async (req, res) => {
   try {
-    const totalProducts = await Product.countDocuments();
-    const totalUsers = await User.countDocuments({ role: 'customer' });
-    const orders = await Order.find().select('orderStatus totalPrice createdAt').lean();
+    const stats = await executeDashboardAnalyticsProcedure();
 
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
-    const validOrders = orders.filter((o) => o.orderStatus !== 'Cancelled' && o.orderStatus !== 'Refunded');
-    const totalRevenue = validOrders.reduce((sum, order) => sum + (order.totalPrice || 0), 0);
-
-    const todayRevenue = validOrders
-      .filter((o) => new Date(o.createdAt) >= startOfToday)
-      .reduce((sum, o) => sum + (o.totalPrice || 0), 0);
-
-    const monthRevenue = validOrders
-      .filter((o) => new Date(o.createdAt) >= startOfMonth)
-      .reduce((sum, o) => sum + (o.totalPrice || 0), 0);
-
-    const totalOrders = orders.length;
-    const pendingOrders = orders.filter((o) => o.orderStatus === 'Pending').length;
-    const processingOrders = orders.filter((o) => o.orderStatus === 'Processing').length;
-    const shippingOrders = orders.filter((o) => o.orderStatus === 'Shipping').length;
-    const completedOrders = orders.filter((o) => o.orderStatus === 'Delivered').length;
-    const cancelledOrders = orders.filter((o) => o.orderStatus === 'Cancelled').length;
-    const refundedOrders = orders.filter((o) => o.orderStatus === 'Refunded').length;
-
-    // Calculate total physical stock across all products
-    const allProducts = await Product.find().select('stock stockQuantity name category price variants images').lean();
-    const totalStock = allProducts.reduce((sum, p) => sum + (p.stock || 0), 0);
-    const lowStockCount = allProducts.filter((p) => (p.stock || 0) <= 5 && (p.stock || 0) > 0).length;
-    const outOfStockCount = allProducts.filter((p) => (p.stock || 0) <= 0).length;
-
-    // Conversion rate approximation (completed orders / (total visits or users))
-    const conversionRate = totalUsers > 0 ? ((completedOrders / totalUsers) * 100).toFixed(1) : '3.8';
-
-    // 7 Days Revenue & Orders Chart
-    const chartDays = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
-      const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-      const dayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
-      const dayLabel = `${d.getDate()}/${d.getMonth() + 1}`;
-
-      const dayOrders = validOrders.filter((o) => {
-        const orderDate = new Date(o.createdAt);
-        return orderDate >= dayStart && orderDate <= dayEnd;
-      });
-
-      const dayRev = dayOrders.reduce((sum, o) => sum + (o.totalPrice || 0), 0);
-      chartDays.push({
-        date: dayLabel,
-        revenue: dayRev,
-        orders: dayOrders.length,
-      });
-    }
-
-    // Recent orders
+    // Fetch recent orders for admin table
     const recentOrders = await Order.find()
-      .populate('user', 'name email')
+      .populate('user', 'name email uuid')
       .sort({ createdAt: -1 })
       .limit(6)
       .lean();
@@ -76,91 +27,119 @@ export const getDashboardStats = async (req, res) => {
       .limit(5)
       .lean();
 
-    // Category breakdown
-    const categoryStats = await Product.aggregate([
-      { $group: { _id: '$category', count: { $sum: 1 } } },
-    ]);
-
-    res.json({
-      success: true,
-      stats: {
-        totalRevenue,
-        todayRevenue,
-        monthRevenue,
-        totalOrders,
-        pendingOrders,
-        processingOrders,
-        shippingOrders,
-        completedOrders,
-        cancelledOrders,
-        refundedOrders,
-        totalProducts,
-        totalUsers,
-        totalStock,
-        lowStockCount,
-        outOfStockCount,
-        conversionRate,
+    return ApiResponse.success(res, {
+      message: 'Nạp dữ liệu thống kê quản trị thành công',
+      data: {
+        stats: {
+          totalRevenue: stats.totalRevenue,
+          todayRevenue: stats.todayRevenue,
+          monthRevenue: stats.monthRevenue,
+          totalOrders: stats.totalOrders,
+          pendingOrders: stats.pendingOrders,
+          processingOrders: stats.processingOrders,
+          shippingOrders: stats.shippingOrders,
+          completedOrders: stats.completedOrders,
+          cancelledOrders: stats.cancelledOrders,
+          refundedOrders: stats.refundedOrders,
+          totalProducts: stats.totalProducts,
+          totalUsers: stats.totalUsers,
+          totalStock: stats.totalStock,
+          lowStockCount: stats.lowStockCount,
+          outOfStockCount: stats.outOfStockCount,
+          conversionRate: stats.conversionRate,
+        },
+        chartData: stats.chartDays,
+        recentOrders,
+        topProducts,
+        categoryStats: stats.categoryStats,
       },
-      chartData: chartDays,
-      recentOrders,
-      topProducts,
-      categoryStats,
     });
   } catch (error) {
-    console.error('getDashboardStats error:', error);
-    res.status(500).json({ success: false, message: error.message });
+    logger.error(`getDashboardStats error: ${error.message}`, { requestId: req.id });
+    return ApiResponse.error(res, {
+      message: 'Không thể tính toán thống kê bảng điều khiển',
+      statusCode: 500,
+      errors: error.message,
+    });
   }
 };
 
 /**
- * Admin: Get Users list with order counts & total spent
+ * Admin: Get Users list with Database Aggregation ($lookup join)
  */
 export const getUsersList = async (req, res) => {
   try {
     const { search = '', role } = req.query;
-    const query = {};
+    const matchStage = {};
 
     if (search) {
-      query.$or = [
+      matchStage.$or = [
         { name: { $regex: search, $options: 'i' } },
         { email: { $regex: search, $options: 'i' } },
         { phone: { $regex: search, $options: 'i' } },
       ];
     }
     if (role && role !== 'All') {
-      query.role = role;
+      matchStage.role = role;
     }
 
-    const users = await User.find(query).select('-password').sort({ createdAt: -1 }).lean();
+    // High-performance MongoDB $lookup pipeline (Zero in-memory JavaScript looping)
+    const enrichedUsers = await User.aggregate([
+      { $match: matchStage },
+      {
+        $lookup: {
+          from: 'orders',
+          let: { userId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$user', '$$userId'] },
+                    { $not: { $in: ['$orderStatus', ['Cancelled', 'Refunded']] } },
+                  ],
+                },
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                count: { $sum: 1 },
+                spent: { $sum: '$totalPrice' },
+              },
+            },
+          ],
+          as: 'orderStats',
+        },
+      },
+      {
+        $project: {
+          password: 0,
+          twoFactorOtp: 0,
+          resetPasswordToken: 0,
+        },
+      },
+      {
+        $addFields: {
+          orderCount: { $ifNull: [{ $arrayElemAt: ['$orderStats.count', 0] }, 0] },
+          totalSpent: { $ifNull: [{ $arrayElemAt: ['$orderStats.spent', 0] }, 0] },
+        },
+      },
+      { $project: { orderStats: 0 } },
+      { $sort: { createdAt: -1 } },
+    ]);
 
-    // Aggregate user spending and order count
-    const orders = await Order.find({ orderStatus: { $nin: ['Cancelled', 'Refunded'] } }).select('user totalPrice').lean();
-    const userOrderMap = {};
-
-    orders.forEach((ord) => {
-      const uId = ord.user ? ord.user.toString() : null;
-      if (uId) {
-        if (!userOrderMap[uId]) {
-          userOrderMap[uId] = { count: 0, spent: 0 };
-        }
-        userOrderMap[uId].count += 1;
-        userOrderMap[uId].spent += ord.totalPrice || 0;
-      }
+    return ApiResponse.success(res, {
+      message: 'Nạp danh sách người dùng thành công',
+      data: { users: enrichedUsers },
     });
-
-    const enrichedUsers = users.map((u) => {
-      const stats = userOrderMap[u._id.toString()] || { count: 0, spent: 0 };
-      return {
-        ...u,
-        orderCount: stats.count,
-        totalSpent: stats.spent,
-      };
-    });
-
-    res.json({ success: true, users: enrichedUsers });
   } catch (error) {
-    console.error('getUsersList error:', error);
-    res.status(500).json({ success: false, message: 'Lỗi nạp danh sách người dùng' });
+    logger.error(`getUsersList error: ${error.message}`, { requestId: req.id });
+    return ApiResponse.error(res, {
+      message: 'Lỗi nạp danh sách người dùng',
+      statusCode: 500,
+      errors: error.message,
+    });
   }
 };
 
@@ -172,28 +151,28 @@ export const toggleUserBan = async (req, res) => {
     const { id } = req.params;
     const user = await User.findById(id);
     if (!user) {
-      return res.status(404).json({ success: false, message: 'Không tìm thấy người dùng' });
+      return ApiResponse.error(res, { message: 'Không tìm thấy người dùng', statusCode: 404 });
     }
 
     if (user.role === 'admin') {
-      return res.status(400).json({ success: false, message: 'Không thể khóa tài khoản Quản trị viên' });
+      return ApiResponse.error(res, { message: 'Không thể khóa tài khoản Quản trị viên', statusCode: 400 });
     }
 
     user.isBanned = !user.isBanned;
     if (user.isBanned) {
-      // Invalidate current sessions immediately
-      user.tokenVersion = (user.tokenVersion || 0) + 1;
+      user.tokenVersion = (user.tokenVersion || 0) + 1; // Revoke JWT sessions immediately
     }
     await user.save();
 
-    res.json({
-      success: true,
+    logger.info(`User ${user.email} ban state toggled to ${user.isBanned}`, { requestId: req.id });
+
+    return ApiResponse.success(res, {
       message: user.isBanned ? `Đã khóa tài khoản ${user.name}` : `Đã mở khóa tài khoản ${user.name}`,
-      isBanned: user.isBanned,
+      data: { isBanned: user.isBanned },
     });
   } catch (error) {
-    console.error('toggleUserBan error:', error);
-    res.status(500).json({ success: false, message: 'Lỗi cập nhật trạng thái tài khoản' });
+    logger.error(`toggleUserBan error: ${error.message}`, { requestId: req.id });
+    return ApiResponse.error(res, { message: 'Lỗi cập nhật trạng thái tài khoản', statusCode: 500 });
   }
 };
 
@@ -206,12 +185,12 @@ export const adminResetUserPassword = async (req, res) => {
     const { newPassword } = req.body;
 
     if (!newPassword || newPassword.length < 6) {
-      return res.status(400).json({ success: false, message: 'Mật khẩu mới phải có ít nhất 6 ký tự' });
+      return ApiResponse.error(res, { message: 'Mật khẩu mới phải có ít nhất 6 ký tự', statusCode: 400 });
     }
 
     const user = await User.findById(id);
     if (!user) {
-      return res.status(404).json({ success: false, message: 'Không tìm thấy người dùng' });
+      return ApiResponse.error(res, { message: 'Không tìm thấy người dùng', statusCode: 404 });
     }
 
     const salt = await bcrypt.genSalt(10);
@@ -219,22 +198,23 @@ export const adminResetUserPassword = async (req, res) => {
     user.tokenVersion = (user.tokenVersion || 0) + 1; // Force re-login
     await user.save();
 
-    res.json({
-      success: true,
+    logger.info(`Admin reset password for user: ${user.email}`, { requestId: req.id });
+
+    return ApiResponse.success(res, {
       message: `Đã thiết lập lại mật khẩu thành công cho ${user.name}`,
     });
   } catch (error) {
-    console.error('adminResetUserPassword error:', error);
-    res.status(500).json({ success: false, message: 'Lỗi đặt lại mật khẩu' });
+    logger.error(`adminResetUserPassword error: ${error.message}`, { requestId: req.id });
+    return ApiResponse.error(res, { message: 'Lỗi đặt lại mật khẩu', statusCode: 500 });
   }
 };
 
 /**
- * Admin: Get Inventory & Low-Stock Alerts
+ * Admin: Get Inventory & Low-Stock Alerts via Database Aggregation
  */
 export const getInventoryStats = async (req, res) => {
   try {
-    const products = await Product.find().sort({ stock: 1, stockQuantity: 1 }).lean();
+    const products = await Product.find().sort({ stockQuantity: 1 }).lean();
 
     const lowStockThreshold = 5;
     const lowStockItems = [];
@@ -242,8 +222,8 @@ export const getInventoryStats = async (req, res) => {
     const healthyItems = [];
 
     products.forEach((p) => {
-      const stock = p.stock || 0;
-      if (stock === 0) {
+      const stock = p.stockQuantity !== undefined ? p.stockQuantity : p.stock || 0;
+      if (stock <= 0) {
         outOfStockItems.push(p);
       } else if (stock <= lowStockThreshold) {
         lowStockItems.push(p);
@@ -252,20 +232,44 @@ export const getInventoryStats = async (req, res) => {
       }
     });
 
-    res.json({
-      success: true,
-      summary: {
-        totalProducts: products.length,
-        outOfStockCount: outOfStockItems.length,
-        lowStockCount: lowStockItems.length,
-        healthyCount: healthyItems.length,
+    return ApiResponse.success(res, {
+      message: 'Nạp thông tin tồn kho thành công',
+      data: {
+        summary: {
+          totalProducts: products.length,
+          outOfStockCount: outOfStockItems.length,
+          lowStockCount: lowStockItems.length,
+          healthyCount: healthyItems.length,
+        },
+        lowStockItems,
+        outOfStockItems,
+        allProducts: products,
       },
-      lowStockItems,
-      outOfStockItems,
-      allProducts: products,
     });
   } catch (error) {
-    console.error('getInventoryStats error:', error);
-    res.status(500).json({ success: false, message: 'Lỗi nạp thông tin kho hàng' });
+    logger.error(`getInventoryStats error: ${error.message}`, { requestId: req.id });
+    return ApiResponse.error(res, { message: 'Lỗi nạp thông tin kho hàng', statusCode: 500 });
+  }
+};
+
+/**
+ * Admin: Real-time Structured Logging Stack Inspection API
+ * Allows Tech Lead / Admin to inspect recent centralized logs directly via API
+ */
+export const getSystemLogs = async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit, 10) || 100;
+    const logs = logger.getRecentLogs(limit);
+
+    return ApiResponse.success(res, {
+      message: 'Nạp nhật ký hệ thống thành công',
+      data: { logs, count: logs.length },
+      meta: {
+        logStack: 'Winston + DailyRotateFile + MemoryBuffer',
+        traceId: req.id,
+      },
+    });
+  } catch (error) {
+    return ApiResponse.error(res, { message: 'Lỗi nạp nhật ký hệ thống', statusCode: 500 });
   }
 };

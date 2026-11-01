@@ -37,9 +37,15 @@ import {
 } from './middleware/securityShield.js';
 import { sanitizeInput } from './middleware/sanitize.js';
 import { gzipCompression } from './middleware/compression.js';
+import { correlationIdMiddleware } from './middleware/correlationId.js';
+import { httpLogger } from './middleware/httpLogger.js';
+import { logger } from './config/logger.js';
+import { ApiResponse } from './utils/ApiResponse.js';
 
 // 1. Security & Privacy Settings: Mask Express fingerprint & Deploy Honeypot WAF
 app.disable('x-powered-by');
+app.use(correlationIdMiddleware);
+app.use(httpLogger);
 app.use(gzipCompression);
 app.use(honeypotShield);
 
@@ -598,7 +604,11 @@ app.use((req, res) => {
 
 // Global Error Handler
 app.use((err, req, res, next) => {
-  console.error('🚨 Unhandled Server Error:', err);
+  logger.error(`🚨 Unhandled Server Error [${req.method} ${req.originalUrl}]: ${err.message}`, {
+    requestId: req.id,
+    stack: err.stack,
+    status: err.status || err.statusCode || 500,
+  });
   const status = err.status || err.statusCode || 500;
   const isProduction = process.env.NODE_ENV === 'production';
 

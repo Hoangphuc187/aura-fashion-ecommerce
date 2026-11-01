@@ -8,7 +8,8 @@
     "start": "node src/server.js",
     "dev": "node --watch-path=src src/server.js",
     "seed": "node src/seed.js",
-    "test": "node tests/test_security.js && node tests/test_realtime_and_worker.js && node tests/test_race_condition.js && node tests/test_2fa.js",
+    "test": "node tests/test_enterprise_be.js",
+    "test:enterprise": "node tests/test_enterprise_be.js",
     "test:realtime": "node tests/test_realtime_and_worker.js",
     "test:security": "node tests/test_security.js",
     "test:race": "node tests/test_race_condition.js",
@@ -22,6 +23,9 @@
     "jsonwebtoken": "^9.0.2",
     "mongodb-memory-server": "^10.1.4",
     "mongoose": "^8.12.1",
-    "nodemailer": "^10.1.7"
+    "nodemailer": "^10.1.7",
+    "uuid": "^14.0.3",
+    "winston": "^3.19.0",
+    "winston-daily-rotate-file": "^5.0.0"
   }
 }

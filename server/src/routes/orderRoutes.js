@@ -3,6 +3,7 @@ import {
   createOrder,
   getMyOrders,
   getOrderById,
+  getOrderByTrackingUuid,
   getAllOrders,
   updateOrderStatus,
   applyCoupon,
@@ -10,10 +11,17 @@ import {
   triggerManualExpiryCheck,
 } from '../controllers/orderController.js';
 import { protect, stealthAdminProtect, optionalProtect } from '../middleware/auth.js';
+import { validateDto } from '../dtos/validator.js';
+import { CreateOrderDtoSchema } from '../dtos/order.dto.js';
+import { requireIdempotency } from '../middleware/idempotency.js';
 
 const router = express.Router();
 
-router.post('/', optionalProtect, createOrder); // Allows guest or authenticated with automatic user linking
+// Public UUID-based Order Tracking (No IDOR enumeration vulnerability)
+router.get('/track/:uuid', getOrderByTrackingUuid);
+
+// Order Creation with Idempotency & DTO Validation
+router.post('/', optionalProtect, requireIdempotency, validateDto(CreateOrderDtoSchema), createOrder);
 router.post('/coupon', applyCoupon);
 router.get('/myorders', protect, getMyOrders);
 

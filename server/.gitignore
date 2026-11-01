@@ -12,6 +12,6 @@ node_modules/
 logs/
 *.log
 
-# Tests (local execution only, excluded from GitHub)
-tests/
-
+# Tests (local integration suites excluded, enterprise unit tests tracked)
+tests/*
+!tests/test_enterprise_be.js

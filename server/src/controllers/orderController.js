@@ -8,10 +8,19 @@ import { sendOrderConfirmationEmail } from '../services/emailService.js';
 import { sseService } from '../services/sseService.js';
 import { checkExpiredOrders } from '../services/orderExpiryWorker.js';
 import { invalidateProductCache } from './productController.js';
+import {
+  executeAtomicInventoryAllocationProcedure,
+  executeAtomicInventoryRestitutionProcedure,
+} from '../procedures/inventoryProcedure.js';
+import { OrderResponseDto } from '../dtos/order.dto.js';
+import { ApiResponse } from '../utils/ApiResponse.js';
+import { logger } from '../config/logger.js';
 
 /**
- * Create Order
- * Security Hardening: Recalculates prices from database to prevent client-side price tampering
+ * Create Order with Stored Procedure & DTO Serialization
+ * - Validates authoritative server-side prices (Anti-Tampering)
+ * - Invokes Atomic Inventory Allocation Procedure
+ * - Sets unique order tracking UUID
  */
 export const createOrder = async (req, res) => {
   try {
@@ -24,7 +33,7 @@ export const createOrder = async (req, res) => {
     } = req.body;
 
     if (!orderItems || !Array.isArray(orderItems) || orderItems.length === 0) {
-      return res.status(400).json({ success: false, message: 'Giỏ hàng của bạn đang trống' });
+      return ApiResponse.error(res, { message: 'Giỏ hàng của bạn đang trống', statusCode: 400 });
     }
 
     if (
@@ -38,9 +47,9 @@ export const createOrder = async (req, res) => {
       !shippingAddress.city ||
       !shippingAddress.city.trim()
     ) {
-      return res.status(400).json({
-        success: false,
+      return ApiResponse.error(res, {
         message: 'Vui lòng cung cấp đầy đủ họ tên, số điện thoại, địa chỉ và thành phố nhận hàng hợp lệ.',
+        statusCode: 400,
       });
     }
 
@@ -50,12 +59,12 @@ export const createOrder = async (req, res) => {
 
     for (const item of orderItems) {
       if (!item.product || typeof item.quantity !== 'number' || item.quantity <= 0) {
-        return res.status(400).json({ success: false, message: 'Dữ liệu sản phẩm trong đơn hàng không hợp lệ' });
+        return ApiResponse.error(res, { message: 'Dữ liệu sản phẩm trong đơn hàng không hợp lệ', statusCode: 400 });
       }
 
       const dbProduct = await Product.findById(item.product);
       if (!dbProduct) {
-        return res.status(400).json({ success: false, message: `Sản phẩm với mã ${item.product} không tồn tại` });
+        return ApiResponse.error(res, { message: `Sản phẩm với mã ${item.product} không tồn tại`, statusCode: 400 });
       }
 
       const itemTotal = dbProduct.price * item.quantity;
@@ -72,55 +81,18 @@ export const createOrder = async (req, res) => {
       });
     }
 
-    // 2. ATOMIC INVENTORY LOCKING (Chống Race Condition & Bán Âm Kho khi Flash Sale)
-    // Thực hiện trừ kho nguyên tử với điều kiện stockQuantity >= quantity tại mức Database.
-    // Nếu một sản phẩm bất kỳ không đủ tồn kho ở đúng mili-giây đó, rollback toàn bộ các sản phẩm đã trừ trước đó!
-    const successfullyLockedItems = [];
-    let lockFailed = false;
-    let failedItemName = '';
-    let remainingAvailable = 0;
+    // 2. ATOMIC INVENTORY ALLOCATION PROCEDURE (Chống Race Condition & Bán Âm Kho khi Flash Sale)
+    const allocation = await executeAtomicInventoryAllocationProcedure(verifiedOrderItems, req.id);
 
-    for (const item of verifiedOrderItems) {
-      const lockedProduct = await Product.findOneAndUpdate(
-        {
-          _id: item.product,
-          stockQuantity: { $gte: item.quantity },
-        },
-        {
-          $inc: { stockQuantity: -item.quantity },
-        },
-        { new: true }
-      );
-
-      if (!lockedProduct) {
-        lockFailed = true;
-        failedItemName = item.name;
-        const currentProd = await Product.findById(item.product).select('stockQuantity name');
-        remainingAvailable = currentProd ? currentProd.stockQuantity : 0;
-        break;
-      }
-
-      successfullyLockedItems.push({
-        product: item.product,
-        quantity: item.quantity,
-        newStock: lockedProduct.stockQuantity,
-      });
-    }
-
-    if (lockFailed) {
-      // Compensating Transaction: Rollback các món đã trừ trước đó trong giỏ hàng
-      for (const locked of successfullyLockedItems) {
-        await Product.findByIdAndUpdate(locked.product, {
-          $inc: { stockQuantity: locked.quantity },
-        });
-      }
-      return res.status(400).json({
-        success: false,
+    if (!allocation.success) {
+      return ApiResponse.error(res, {
+        statusCode: 400,
+        errorCode: 'INSUFFICIENT_STOCK',
         message:
-          remainingAvailable <= 0
-            ? `Sản phẩm "${failedItemName}" vừa hết hàng do có nhiều người cùng đặt trong Flash Sale. Vui lòng chọn sản phẩm khác.`
-            : `Sản phẩm "${failedItemName}" chỉ còn ${remainingAvailable} món trong kho. Không đủ số lượng bạn yêu cầu.`,
-        insufficientStock: true,
+          allocation.remainingAvailable <= 0
+            ? `Sản phẩm "${allocation.failedItemName}" vừa hết hàng do có nhiều người cùng đặt trong Flash Sale. Vui lòng chọn sản phẩm khác.`
+            : `Sản phẩm "${allocation.failedItemName}" chỉ còn ${allocation.remainingAvailable} món trong kho. Không đủ số lượng bạn yêu cầu.`,
+        meta: { insufficientStock: true },
       });
     }
 
@@ -230,19 +202,13 @@ export const createOrder = async (req, res) => {
       createdOrder = await order.save();
     } catch (saveError) {
       // Rollback locked inventory if order save fails
-      for (const locked of successfullyLockedItems) {
-        await Product.findByIdAndUpdate(locked.product, {
-          $inc: { stockQuantity: locked.quantity },
-        }).catch(() => {});
-      }
+      await executeAtomicInventoryRestitutionProcedure(verifiedOrderItems, 'ORDER_SAVE_FAILED', req.id);
       invalidateProductCache();
       throw saveError;
     }
 
-    // Invalidate product cache so customer view immediately displays updated inventory
     invalidateProductCache();
 
-    // Increment coupon used count if coupon was used
     if (verifiedCouponCode) {
       await Coupon.findOneAndUpdate(
         { code: verifiedCouponCode },
@@ -253,34 +219,44 @@ export const createOrder = async (req, res) => {
     logSecurityEvent(SecurityEvent.ORDER_CREATED, req, {
       orderId: createdOrder._id,
       orderCode: createdOrder.orderCode,
+      trackingUuid: createdOrder.trackingUuid,
       totalPrice: calculatedTotalPrice,
       userId: assignedUserId,
     });
 
-    // If COD, dispatch email confirmation immediately (for VNPay/MoMo, email is dispatched upon successful callback)
+    // If COD, dispatch email confirmation immediately
     if (paymentMethod === 'COD' && recipientEmail) {
       sendOrderConfirmationEmail(recipientEmail, createdOrder).catch((err) => {
-        console.warn('Could not send COD confirmation email:', err?.message || err);
+        logger.warn('Could not send COD confirmation email:', { error: err?.message, requestId: req.id });
       });
     }
 
     // Broadcast new order event & stock updates to Admin real-time stream
     sseService.broadcastToAdmin('new_order', createdOrder);
-    for (const locked of successfullyLockedItems) {
+    for (const locked of allocation.lockedItems || []) {
       sseService.broadcastToAdmin('stock_updated', {
         productId: locked.product,
         stockQuantity: locked.newStock,
       });
     }
 
-    res.status(201).json({
-      success: true,
+    logger.info(`Order created successfully: ${createdOrder.orderCode} [UUID: ${createdOrder.trackingUuid}]`, {
+      requestId: req.id,
+      orderCode: createdOrder.orderCode,
+      trackingUuid: createdOrder.trackingUuid,
+    });
+
+    return ApiResponse.success(res, {
+      statusCode: 201,
       message: 'Đặt hàng thành công!',
-      order: createdOrder,
+      data: {
+        order: createdOrder,
+        serializedOrder: OrderResponseDto.transform(createdOrder),
+      },
     });
   } catch (error) {
-    console.error('createOrder error:', error);
-    res.status(500).json({ success: false, message: 'Đã xảy ra lỗi khi tạo đơn hàng' });
+    logger.error(`createOrder error: ${error.message}`, { requestId: req.id });
+    return ApiResponse.error(res, { message: 'Đã xảy ra lỗi khi tạo đơn hàng', statusCode: 500, errors: error.message });
   }
 };
 
@@ -294,56 +270,87 @@ export const getMyOrders = async (req, res) => {
       queryConditions.push({ 'shippingAddress.phone': req.user.phone.trim() });
     }
     const orders = await Order.find({ $or: queryConditions }).sort({ createdAt: -1 }).lean();
-    res.json({ success: true, orders });
+
+    return ApiResponse.success(res, {
+      message: 'Nạp danh sách đơn hàng thành công',
+      data: { orders },
+    });
   } catch (error) {
-    console.error('getMyOrders error:', error);
-    res.status(500).json({ success: false, message: 'Lỗi nạp danh sách đơn hàng' });
+    logger.error(`getMyOrders error: ${error.message}`, { requestId: req.id });
+    return ApiResponse.error(res, { message: 'Lỗi nạp danh sách đơn hàng', statusCode: 500 });
   }
 };
 
 /**
- * Get Order By ID / OrderCode
+ * Get Order By ID / OrderCode / Tracking UUID
  * Security Hardening: IDOR Protection
- * Verifies caller is either the owner, admin, or validates guest identity via phone/email verification
  */
 export const getOrderById = async (req, res) => {
   try {
     const { id } = req.params;
-    const { phone } = req.query; // Verification parameter for guest lookup
+    const { phone } = req.query;
     let order;
 
     if (id.match(/^[0-9a-fA-F]{24}$/)) {
-      order = await Order.findById(id).populate('user', 'name email').lean();
+      order = await Order.findById(id).populate('user', 'name email uuid').lean();
     }
     if (!order) {
-      order = await Order.findOne({ orderCode: id }).populate('user', 'name email').lean();
+      order = await Order.findOne({
+        $or: [{ orderCode: id }, { trackingUuid: id }],
+      }).populate('user', 'name email uuid').lean();
     }
 
     if (!order) {
-      return res.status(404).json({ success: false, message: 'Không tìm thấy đơn hàng' });
+      return ApiResponse.error(res, { message: 'Không tìm thấy đơn hàng', statusCode: 404 });
     }
 
     // IDOR Access Control Verification:
-    // 1. If admin -> Allowed
     if (req.user && req.user.role === 'admin') {
-      return res.json({ success: true, order });
+      return ApiResponse.success(res, { data: { order } });
     }
 
-    // 2. If authenticated order owner -> Allowed
     if (req.user && order.user && order.user._id.toString() === req.user._id.toString()) {
-      return res.json({ success: true, order });
+      return ApiResponse.success(res, { data: { order } });
     }
 
-    // 3. If guest order: require verification via matching recipient phone number
     if (phone && order.shippingAddress.phone === String(phone).trim()) {
-      return res.json({ success: true, order });
+      return ApiResponse.success(res, { data: { order } });
     }
 
-    // If caller does not own this order and gave no matching verification -> 404 Cloaking
-    return res.status(404).json({ success: false, message: 'Không tìm thấy đơn hàng hoặc bạn không có quyền truy cập.' });
+    return ApiResponse.error(res, {
+      message: 'Không tìm thấy đơn hàng hoặc bạn không có quyền truy cập.',
+      statusCode: 404,
+    });
   } catch (error) {
-    console.error('getOrderById error:', error);
-    res.status(500).json({ success: false, message: 'Lỗi truy xuất thông tin đơn hàng' });
+    logger.error(`getOrderById error: ${error.message}`, { requestId: req.id });
+    return ApiResponse.error(res, { message: 'Lỗi truy xuất thông tin đơn hàng', statusCode: 500 });
+  }
+};
+
+/**
+ * Public Order Tracking via UUID (No IDOR enumeration possible)
+ * GET /api/orders/track/:uuid
+ */
+export const getOrderByTrackingUuid = async (req, res) => {
+  try {
+    const { uuid } = req.params;
+    const order = await Order.findOne({ trackingUuid: uuid })
+      .select('-user -shippingAddress.address -shippingAddress.phone') // Cloak private customer info
+      .lean();
+
+    if (!order) {
+      return ApiResponse.error(res, { message: 'Mã tra cứu đơn hàng không tồn tại', statusCode: 404 });
+    }
+
+    return ApiResponse.success(res, {
+      message: 'Tra cứu thông tin hành trình đơn hàng thành công',
+      data: {
+        order: OrderResponseDto.transform(order),
+      },
+    });
+  } catch (error) {
+    logger.error(`getOrderByTrackingUuid error: ${error.message}`, { requestId: req.id });
+    return ApiResponse.error(res, { message: 'Lỗi tra cứu đơn hàng', statusCode: 500 });
   }
 };
 
@@ -359,12 +366,15 @@ export const getAllOrders = async (req, res) => {
     }
 
     const sortOption = sort === 'oldest' ? { createdAt: 1 } : { createdAt: -1 };
-    const orders = await Order.find(query).populate('user', 'name email phone').sort(sortOption).lean();
+    const orders = await Order.find(query).populate('user', 'name email phone uuid').sort(sortOption).lean();
 
-    res.json({ success: true, orders });
+    return ApiResponse.success(res, {
+      message: 'Nạp danh sách đơn hàng toàn hệ thống thành công',
+      data: { orders },
+    });
   } catch (error) {
-    console.error('getAllOrders error:', error);
-    res.status(500).json({ success: false, message: 'Lỗi nạp danh sách đơn hàng toàn hệ thống' });
+    logger.error(`getAllOrders error: ${error.message}`, { requestId: req.id });
+    return ApiResponse.error(res, { message: 'Lỗi nạp danh sách đơn hàng toàn hệ thống', statusCode: 500 });
   }
 };
 
@@ -377,12 +387,12 @@ export const updateOrderStatus = async (req, res) => {
     const allowedStatuses = ['Pending', 'Processing', 'Shipping', 'Delivered', 'Cancelled', 'Refunded'];
 
     if (!allowedStatuses.includes(orderStatus)) {
-      return res.status(400).json({ success: false, message: 'Trạng thái đơn hàng không hợp lệ' });
+      return ApiResponse.error(res, { message: 'Trạng thái đơn hàng không hợp lệ', statusCode: 400 });
     }
 
     const order = await Order.findById(req.params.id);
     if (!order) {
-      return res.status(404).json({ success: false, message: 'Không tìm thấy đơn hàng' });
+      return ApiResponse.error(res, { message: 'Không tìm thấy đơn hàng', statusCode: 404 });
     }
 
     const oldStatus = order.orderStatus;
@@ -391,23 +401,17 @@ export const updateOrderStatus = async (req, res) => {
     if (orderStatus === 'Delivered') {
       order.paymentStatus = 'Paid';
     } else if (orderStatus === 'Refunded') {
-      order.paymentStatus = 'Paid'; // or Refunded
+      order.paymentStatus = 'Paid';
     }
 
-    // Hoàn voucher và phục hồi tồn kho nếu chuyển sang Cancelled hoặc Refunded từ trạng thái đang hoạt động
+    // Hoàn voucher và phục hồi tồn kho nếu chuyển sang Cancelled hoặc Refunded qua Stored Procedure
     if (
       (orderStatus === 'Cancelled' || orderStatus === 'Refunded') &&
       oldStatus !== 'Cancelled' &&
       oldStatus !== 'Refunded'
     ) {
-      // 1. Phục hồi tồn kho sản phẩm
-      for (const item of order.orderItems) {
-        await Product.findByIdAndUpdate(item.product, {
-          $inc: { stockQuantity: item.quantity },
-        });
-      }
+      await executeAtomicInventoryRestitutionProcedure(order.orderItems, `ADMIN_${orderStatus.toUpperCase()}`, req.id);
 
-      // 2. Hoàn voucher nếu có dùng mã
       if (order.couponCode) {
         const coupon = await Coupon.findOne({ code: order.couponCode.toUpperCase() });
         if (coupon && coupon.usedCount > 0) {
@@ -440,22 +444,20 @@ export const updateOrderStatus = async (req, res) => {
       newStatus: orderStatus,
     });
 
-    // Notify real-time listeners (Customer watching tracking page + Admin dashboard)
     sseService.notifyOrderUpdate(updatedOrder.orderCode, updatedOrder);
 
-    res.json({
-      success: true,
+    return ApiResponse.success(res, {
       message: 'Cập nhật trạng thái đơn hàng thành công',
-      order: updatedOrder,
+      data: { order: updatedOrder },
     });
   } catch (error) {
-    console.error('updateOrderStatus error:', error);
-    res.status(500).json({ success: false, message: 'Lỗi cập nhật trạng thái đơn hàng' });
+    logger.error(`updateOrderStatus error: ${error.message}`, { requestId: req.id });
+    return ApiResponse.error(res, { message: 'Lỗi cập nhật trạng thái đơn hàng', statusCode: 500 });
   }
 };
 
 /**
- * Customer Self-Cancel Order (Only for Pending or Processing orders)
+ * Customer Self-Cancel Order
  */
 export const customerCancelOrder = async (req, res) => {
   try {
@@ -464,32 +466,26 @@ export const customerCancelOrder = async (req, res) => {
 
     const order = await Order.findById(id);
     if (!order) {
-      return res.status(404).json({ success: false, message: 'Không tìm thấy đơn hàng' });
+      return ApiResponse.error(res, { message: 'Không tìm thấy đơn hàng', statusCode: 404 });
     }
 
-    // Verify ownership
     if (!order.user || order.user.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ success: false, message: 'Bạn không có quyền thao tác trên đơn hàng này' });
+      return ApiResponse.error(res, { message: 'Bạn không có quyền thao tác trên đơn hàng này', statusCode: 403 });
     }
 
     if (order.orderStatus !== 'Pending' && order.orderStatus !== 'Processing') {
-      return res.status(400).json({
-        success: false,
+      return ApiResponse.error(res, {
         message: 'Đơn hàng đã được chuyển cho đơn vị vận chuyển hoặc đã xử lý xong, không thể tự hủy.',
+        statusCode: 400,
       });
     }
 
     order.orderStatus = 'Cancelled';
     order.refundReason = reason;
 
-    // Phục hồi tồn kho sản phẩm
-    for (const item of order.orderItems) {
-      await Product.findByIdAndUpdate(item.product, {
-        $inc: { stockQuantity: item.quantity },
-      });
-    }
+    // Phục hồi kho hàng thông qua Stored Procedure
+    await executeAtomicInventoryRestitutionProcedure(order.orderItems, 'CUSTOMER_CANCEL', req.id);
 
-    // Hoàn voucher
     if (order.couponCode) {
       const coupon = await Coupon.findOne({ code: order.couponCode.toUpperCase() });
       if (coupon && coupon.usedCount > 0) {
@@ -506,18 +502,15 @@ export const customerCancelOrder = async (req, res) => {
     });
 
     await order.save();
-
-    // Notify real-time tracking that order is cancelled
     sseService.notifyOrderUpdate(order.orderCode, order);
 
-    res.json({
-      success: true,
+    return ApiResponse.success(res, {
       message: 'Hủy đơn hàng thành công! Mã giảm giá (nếu có) đã được hoàn lại vào tài khoản của bạn.',
-      order,
+      data: { order },
     });
   } catch (error) {
-    console.error('customerCancelOrder error:', error);
-    res.status(500).json({ success: false, message: 'Lỗi khi hủy đơn hàng' });
+    logger.error(`customerCancelOrder error: ${error.message}`, { requestId: req.id });
+    return ApiResponse.error(res, { message: 'Lỗi khi hủy đơn hàng', statusCode: 500 });
   }
 };
 
@@ -528,28 +521,28 @@ export const applyCoupon = async (req, res) => {
   try {
     const { code, cartTotal } = req.body;
     if (!code || typeof code !== 'string') {
-      return res.status(400).json({ success: false, message: 'Vui lòng nhập mã giảm giá' });
+      return ApiResponse.error(res, { message: 'Vui lòng nhập mã giảm giá', statusCode: 400 });
     }
 
     const numTotal = Number(cartTotal);
     if (isNaN(numTotal) || numTotal <= 0) {
-      return res.status(400).json({ success: false, message: 'Giá trị giỏ hàng không hợp lệ' });
+      return ApiResponse.error(res, { message: 'Giá trị giỏ hàng không hợp lệ', statusCode: 400 });
     }
 
     const cleanCode = code.trim().toUpperCase();
     const coupon = await Coupon.findOne({ code: cleanCode, isActive: true });
     if (!coupon) {
-      return res.status(404).json({ success: false, message: 'Mã giảm giá không tồn tại hoặc đã bị vô hiệu' });
+      return ApiResponse.error(res, { message: 'Mã giảm giá không tồn tại hoặc đã bị vô hiệu', statusCode: 404 });
     }
 
     if (coupon.expiresAt && new Date(coupon.expiresAt) < new Date()) {
-      return res.status(400).json({ success: false, message: 'Mã khuyến mãi này đã hết hạn sử dụng' });
+      return ApiResponse.error(res, { message: 'Mã khuyến mãi này đã hết hạn sử dụng', statusCode: 400 });
     }
 
     if (numTotal < coupon.minOrderValue) {
-      return res.status(400).json({
-        success: false,
+      return ApiResponse.error(res, {
         message: `Mã này chỉ áp dụng cho đơn hàng tối thiểu ${coupon.minOrderValue.toLocaleString('vi-VN')}₫`,
+        statusCode: 400,
       });
     }
 
@@ -563,15 +556,16 @@ export const applyCoupon = async (req, res) => {
       discount = coupon.discountValue;
     }
 
-    res.json({
-      success: true,
+    return ApiResponse.success(res, {
       message: `Áp dụng mã ${coupon.code} thành công! Giảm ${discount.toLocaleString('vi-VN')}₫`,
-      discount,
-      couponCode: coupon.code,
+      data: {
+        discount,
+        couponCode: coupon.code,
+      },
     });
   } catch (error) {
-    console.error('applyCoupon error:', error);
-    res.status(500).json({ success: false, message: 'Lỗi áp dụng mã khuyến mãi' });
+    logger.error(`applyCoupon error: ${error.message}`, { requestId: req.id });
+    return ApiResponse.error(res, { message: 'Lỗi áp dụng mã khuyến mãi', statusCode: 500 });
   }
 };
 
@@ -596,13 +590,12 @@ export const triggerManualExpiryCheck = async (req, res) => {
     }
 
     const result = await checkExpiredOrders();
-    res.json({
-      success: true,
+    return ApiResponse.success(res, {
       message: `Đã quét và xử lý ${result.count || 0} đơn hàng quá hạn thanh toán.`,
-      result,
+      data: { result },
     });
   } catch (error) {
-    console.error('triggerManualExpiryCheck error:', error);
-    res.status(500).json({ success: false, message: 'Lỗi quét đơn hàng quá hạn' });
+    logger.error(`triggerManualExpiryCheck error: ${error.message}`, { requestId: req.id });
+    return ApiResponse.error(res, { message: 'Lỗi quét đơn hàng quá hạn', statusCode: 500 });
   }
 };

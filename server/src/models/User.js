@@ -1,8 +1,15 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 
 const userSchema = new mongoose.Schema(
   {
+    uuid: {
+      type: String,
+      default: () => crypto.randomUUID(),
+      unique: true,
+      index: true,
+    },
     name: {
       type: String,
       required: [true, 'Vui lòng nhập tên người dùng'],
@@ -129,6 +136,7 @@ const userSchema = new mongoose.Schema(
 
 // High-performance query indexes
 userSchema.index({ role: 1, isBanned: 1 });
+userSchema.index({ uuid: 1 });
 userSchema.index({ phone: 1 });
 
 userSchema.virtual('isLocked').get(function () {

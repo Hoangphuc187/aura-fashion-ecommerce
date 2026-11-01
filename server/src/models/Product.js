@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import crypto from 'crypto';
 
 const reviewSchema = new mongoose.Schema(
   {
@@ -36,6 +37,11 @@ const reviewSchema = new mongoose.Schema(
 
 const productSchema = new mongoose.Schema(
   {
+    skuUuid: {
+      type: String,
+      default: () => crypto.randomUUID(),
+      index: true,
+    },
     name: {
       type: String,
       required: [true, 'Tên sản phẩm là bắt buộc'],
@@ -98,30 +104,39 @@ const productSchema = new mongoose.Schema(
       required: true,
       default: 100,
     },
+    stock: {
+      type: Number,
+      default: 100,
+    },
     rating: {
       type: Number,
-      required: true,
       default: 5.0,
+      min: 0,
+      max: 5,
     },
     numReviews: {
       type: Number,
-      required: true,
       default: 0,
     },
     reviews: [reviewSchema],
-    featured: {
-      type: Boolean,
-      default: false,
-    },
     isNewArrival: {
       type: Boolean,
-      default: true,
+      default: false,
     },
     isBestSeller: {
       type: Boolean,
       default: false,
     },
-    tags: [String],
+    featured: {
+      type: Boolean,
+      default: false,
+    },
+    tags: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
   },
   {
     timestamps: true,
@@ -129,6 +144,7 @@ const productSchema = new mongoose.Schema(
 );
 
 // High-performance query indexes
+productSchema.index({ skuUuid: 1 });
 productSchema.index({ category: 1, price: 1 });
 productSchema.index({ createdAt: -1 });
 productSchema.index({ isBestSeller: 1, rating: -1 });

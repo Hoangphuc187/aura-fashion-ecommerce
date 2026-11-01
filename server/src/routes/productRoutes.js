@@ -13,6 +13,8 @@ import {
   deleteReviewAdmin,
 } from '../controllers/productController.js';
 import { protect, stealthAdminProtect } from '../middleware/auth.js';
+import { validateDto } from '../dtos/validator.js';
+import { CreateProductDtoSchema } from '../dtos/product.dto.js';
 
 const router = express.Router();
 
@@ -28,11 +30,11 @@ router.delete('/:productId/reviews/:reviewId', stealthAdminProtect, deleteReview
 router.get('/:id/review-eligibility', protect, checkReviewEligibility);
 router.post('/:id/reviews', protect, addReview);
 
-// Specific product by ID or Slug
+// Specific product by ID or Slug or SKU UUID
 router.get('/:id', getProductByIdOrSlug);
 
 // Admin product management (Stealth cloaked with 404 on unauthorized)
-router.post('/', stealthAdminProtect, createProduct);
+router.post('/', stealthAdminProtect, validateDto(CreateProductDtoSchema), createProduct);
 router.put('/:id', stealthAdminProtect, updateProduct);
 router.delete('/:id', stealthAdminProtect, deleteProduct);
 

@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import crypto from 'crypto';
 
 const orderItemSchema = new mongoose.Schema({
   product: {
@@ -23,6 +24,12 @@ const timelineSchema = new mongoose.Schema({
 
 const orderSchema = new mongoose.Schema(
   {
+    trackingUuid: {
+      type: String,
+      default: () => crypto.randomUUID(),
+      unique: true,
+      index: true,
+    },
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -80,6 +87,7 @@ const orderSchema = new mongoose.Schema(
 // High-performance query indexes
 orderSchema.index({ user: 1, createdAt: -1 });
 orderSchema.index({ orderStatus: 1, createdAt: -1 });
+orderSchema.index({ trackingUuid: 1 });
 orderSchema.index({ 'shippingAddress.phone': 1 });
 orderSchema.index({ 'shippingAddress.email': 1 });
 

@@ -5,6 +5,7 @@ import {
   toggleUserBan,
   adminResetUserPassword,
   getInventoryStats,
+  getSystemLogs,
 } from '../controllers/dashboardController.js';
 import { stealthAdminProtect } from '../middleware/auth.js';
 
@@ -16,5 +17,6 @@ router.get('/users', stealthAdminProtect, getUsersList);
 router.put('/users/:id/ban', stealthAdminProtect, toggleUserBan);
 router.put('/users/:id/reset-password', stealthAdminProtect, adminResetUserPassword);
 router.get('/inventory', stealthAdminProtect, getInventoryStats);
+router.get('/logs', stealthAdminProtect, getSystemLogs);
 
 export default router;

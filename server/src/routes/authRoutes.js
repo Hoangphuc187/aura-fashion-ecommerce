@@ -22,18 +22,20 @@ import {
 } from '../controllers/authController.js';
 import { protect } from '../middleware/auth.js';
 import { authRateLimiter } from '../middleware/securityShield.js';
+import { validateDto } from '../dtos/validator.js';
+import { RegisterDtoSchema, LoginDtoSchema, Verify2faDtoSchema } from '../dtos/auth.dto.js';
 
 const router = express.Router();
 
-// Strict rate-limited authentication endpoints (anti-brute-force & spam)
-router.post('/register', authRateLimiter(10, 60000), register);
-router.post('/login', authRateLimiter(10, 60000), login);
+// Strict rate-limited authentication endpoints with DTO Validation
+router.post('/register', authRateLimiter(10, 60000), validateDto(RegisterDtoSchema), register);
+router.post('/login', authRateLimiter(10, 60000), validateDto(LoginDtoSchema), login);
 router.post('/oauth', authRateLimiter(15, 60000), oauthLogin);
 router.post('/forgot-password', authRateLimiter(5, 60000), forgotPassword);
 router.post('/reset-password', authRateLimiter(5, 60000), resetPassword);
 
-// Two-Factor Authentication (2FA) endpoints
-router.post('/verify-2fa', authRateLimiter(10, 60000), verifyTwoFactor);
+// Two-Factor Authentication (2FA) endpoints with DTO Validation
+router.post('/verify-2fa', authRateLimiter(10, 60000), validateDto(Verify2faDtoSchema), verifyTwoFactor);
 router.post('/resend-2fa', authRateLimiter(5, 60000), resendTwoFactor);
 router.put('/toggle-2fa', protect, toggleTwoFactor);
 
@@ -48,11 +50,11 @@ router.put('/addresses/:id', protect, updateAddress);
 router.delete('/addresses/:id', protect, deleteAddress);
 router.put('/addresses/:id/default', protect, setDefaultAddress);
 
-// Security endpoints
+// Security & Session management
 router.put('/change-password', protect, changePassword);
 router.post('/logout-all', protect, logoutAllDevices);
 
-// Vouchers & Reviews summaries
+// User-specific queries
 router.get('/my-vouchers', protect, getMyVouchers);
 router.get('/my-reviews-summary', protect, getMyReviewsSummary);
 

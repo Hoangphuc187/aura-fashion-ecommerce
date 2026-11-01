@@ -148,14 +148,14 @@ app.all('/admin-portal', async (req, res) => {
           orders: orderCount,
           coupons: couponCount,
         },
-        endpoints: [
-          '/api/health',
-          '/api/products',
-          '/api/orders',
-          '/api/auth/login',
-          '/api/auth/oauth',
-          '/api/dashboard/stats',
-        ],
+
+
+
+
+
+
+
+
       });
     }
 
@@ -488,61 +488,6 @@ app.all('/admin-portal', async (req, res) => {
       </div>
     </div>
 
-    <!-- API Endpoints Directory -->
-    <div class="panel">
-      <div class="panel-title">
-        <span>📚 Danh Sách REST API Endpoints</span>
-      </div>
-      <table class="endpoint-table">
-        <thead>
-          <tr>
-            <th>Method</th>
-            <th>Endpoint</th>
-            <th>Mô Tả Chức Năng</th>
-            <th>Trạng Thái</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><span class="code-badge" style="color: #10b981; font-weight: bold;">GET</span></td>
-            <td><a href="/api/products" target="_blank" class="endpoint-link">/api/products</a></td>
-            <td>Lấy danh sách toàn bộ sản phẩm từ MongoDB Atlas (hỗ trợ lọc category, sort, price)</td>
-            <td><span style="color: #10b981;">✓ 200 OK</span></td>
-          </tr>
-          <tr>
-            <td><span class="code-badge" style="color: #10b981; font-weight: bold;">GET</span></td>
-            <td><a href="/api/orders" target="_blank" class="endpoint-link">/api/orders</a></td>
-            <td>Lấy danh sách các đơn hàng đã tạo trong database</td>
-            <td><span style="color: #10b981;">✓ 200 OK</span></td>
-          </tr>
-          <tr>
-            <td><span class="code-badge" style="color: #10b981; font-weight: bold;">GET</span></td>
-            <td><a href="/api/health" target="_blank" class="endpoint-link">/api/health</a></td>
-            <td>Health check trạng thái máy chủ</td>
-            <td><span style="color: #10b981;">✓ 200 OK</span></td>
-          </tr>
-          <tr>
-            <td><span class="code-badge" style="color: #f59e0b; font-weight: bold;">POST</span></td>
-            <td><span class="endpoint-link" style="color: #f59e0b;">/api/auth/oauth</span></td>
-            <td>Xác thực đăng nhập Google & đồng bộ người dùng vào Atlas</td>
-            <td><span style="color: #10b981;">✓ 200 OK</span></td>
-          </tr>
-          <tr>
-            <td><span class="code-badge" style="color: #f59e0b; font-weight: bold;">POST</span></td>
-            <td><span class="endpoint-link" style="color: #f59e0b;">/api/auth/login</span></td>
-            <td>Đăng nhập bằng Email & Mật khẩu</td>
-            <td><span style="color: #10b981;">✓ 200 OK</span></td>
-          </tr>
-          <tr>
-            <td><span class="code-badge" style="color: #10b981; font-weight: bold;">GET</span></td>
-            <td><a href="/api/dashboard/stats" target="_blank" class="endpoint-link">/api/dashboard/stats</a></td>
-            <td>Thống kê doanh thu, số lượng đơn hàng, người dùng</td>
-            <td><span style="color: #10b981;">✓ 200 OK</span></td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
     <!-- How to view directly on MongoDB Atlas Cloud -->
     <div class="panel" style="border-color: rgba(16, 185, 129, 0.25);">
       <div class="panel-title" style="color: #10b981;">
@@ -634,9 +579,9 @@ const startServer = async () => {
     app.listen(PORT, () => {
       console.log(`\n🚀 ===============================================`);
       console.log(`✨ AURA Fashion Backend đang chạy tại: http://localhost:${PORT}`);
-      console.log(`📚 Health check endpoint: http://localhost:${PORT}/api/health`);
-      console.log(`🛍️ Products API: http://localhost:${PORT}/api/products`);
-      console.log(`🔐 Auth API: http://localhost:${PORT}/api/auth/login`);
+      console.log(`🛡️ Stealth WAF & Honeypot Protection: Active`);
+      console.log(`🔐 Identity & Access Control: Enabled`);
+      console.log(`📦 Enterprise DTO & Logging Stack: Ready`);
       console.log(`===============================================\n`);
     });
   } catch (error) {

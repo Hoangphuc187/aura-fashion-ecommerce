@@ -1,14 +1,6 @@
 /**
  * Standardized Enterprise API Response Envelope
- * Compliant with RESTful best practices:
- * {
- *   success: boolean,
- *   statusCode: number,
- *   message: string,
- *   data: object | array | null,
- *   meta: { timestamp, requestId, path, ... },
- *   errors: array | null
- * }
+ * Hardened: Cloaks server internal routing & path metadata from public responses
  */
 
 export class ApiResponse {
@@ -32,7 +24,6 @@ export class ApiResponse {
       meta: {
         timestamp: new Date().toISOString(),
         requestId,
-        path: res.req?.originalUrl || '',
         ...meta,
       },
     };
@@ -71,7 +62,6 @@ export class ApiResponse {
       meta: {
         timestamp: new Date().toISOString(),
         requestId,
-        path: res.req?.originalUrl || '',
         ...meta,
       },
     });
@@ -79,4 +69,3 @@ export class ApiResponse {
 }
 
 export default ApiResponse;
-

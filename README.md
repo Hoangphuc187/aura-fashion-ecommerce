@@ -279,6 +279,7 @@ Toàn bộ hình ảnh dưới đây được chụp trực tiếp từ hệ th�
   - Crypto (HMAC-SHA256 MoMo, HMAC-SHA512 VNPay)
   - Express Rate Limit & Custom Honeypot WAF
   - Gzip Native Compression Middleware (zlib)
+  - **Nodemailer** (Dịch vụ gửi Email SMTP xác thực 2FA OTP & Hóa đơn đơn hàng)
 
 ---
 
@@ -329,6 +330,13 @@ MOMO_API_URL=https://test-payment.momo.vn/gw_payment/transactionProcessor
 VNPAY_TMN_CODE=your_vnpay_tmn_code
 VNPAY_HASH_SECRET=your_vnpay_hash_secret
 VNPAY_URL=https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
+
+# Dịch vụ gửi Email SMTP (Xác thực 2FA Email OTP & Hóa đơn đơn hàng qua Nodemailer)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your_email@gmail.com
+SMTP_PASS=your_gmail_app_password
+SMTP_FROM=your_email@gmail.com
 ```
 
 ### 4. Khởi chạy hệ thống:

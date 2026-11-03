@@ -1,7 +1,7 @@
 # ⚡ AURA STUDIO - Website Thương Mại Điện Tử Thời Trang Fullstack
 
 > **Hệ thống website thương mại điện tử chuyên về thời trang Streetwear & Unisex cao cấp.**
-> Dự án được xây dựng với kiến trúc Fullstack hiện đại: **Frontend React 19 (Vite)** mang phong cách Dark/Cyberpunk Glassmorphism mượt mà, **Backend Node.js & Express RESTful API**, kết nối trực tiếp **Cloud Database MongoDB Atlas** (100% dữ liệu thực tế), tích hợp cổng thanh toán **MoMo & VNPay Sandbox**, hệ thống **Hỗ Trợ & Live Chat CSKH**, **Cổng Khách Hàng (Customer Portal)** toàn diện 7 phân hệ và **Trang Quản Trị Hệ Thống (Admin Portal - `/admin`)** chuyên sâu.
+> Dự án được xây dựng với kiến trúc Fullstack hiện đại: **Frontend React 19 (Vite)** mang phong cách Dark/Cyberpunk Glassmorphism mượt mà, **Backend Node.js & Express RESTful API**, kết nối trực tiếp **Cloud Database MongoDB Atlas** (100% dữ liệu thực tế), kiến trúc phân tầng **DTO & Standard Response Envelope**, hệ thống **Database Stored Procedures ($facet Aggregation Pipelines)**, quản lý nhật ký **Winston Daily-Rotate Logging Stack**, định danh phân tán **UUID v4 (Request Tracing & Idempotency)**, tích hợp cổng thanh toán **MoMo & VNPay Sandbox**, hệ thống **Hỗ Trợ & Live Chat CSKH**, **Cổng Khách Hàng (Customer Portal)** toàn diện 7 phân hệ và **Trang Quản Trị Hệ Thống (Admin Portal - `/admin`)** chuyên sâu.
 
 [![Node.js](https://img.shields.io/badge/Node.js-v20+-339933?style=flat&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![React](https://img.shields.io/badge/React-19.0-61DAFB?style=flat&logo=react&logoColor=black)](https://react.dev/)
@@ -9,6 +9,9 @@
 [![MongoDB](https://img.shields.io/badge/MongoDB-Atlas_Cloud-47A248?style=flat&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
 [![JWT](https://img.shields.io/badge/JWT-Secure_Auth-000000?style=flat&logo=jsonwebtokens&logoColor=white)](https://jwt.io/)
 [![Realtime SSE](https://img.shields.io/badge/Realtime-Server--Sent_Events-ff9900?style=flat)](https://github.com/Hoangphuc187/aura-fashion-ecommerce)
+[![Winston](https://img.shields.io/badge/Logging-Winston_DailyRotate-blue?style=flat)](https://github.com/Hoangphuc187/aura-fashion-ecommerce)
+[![Docker](https://img.shields.io/badge/Docker-Multi--Stage_Nginx-2496ED?style=flat&logo=docker&logoColor=white)](https://www.docker.com/)
+[![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub_Actions-2088FF?style=flat&logo=githubactions&logoColor=white)](https://github.com/Hoangphuc187/aura-fashion-ecommerce/actions)
 [![Security](https://img.shields.io/badge/Security-WAF_&_Honeypot-ff0055?style=flat)](https://github.com/Hoangphuc187/aura-fashion-ecommerce)
 
 ---
@@ -176,6 +179,47 @@ Toàn bộ hình ảnh dưới đây được chụp trực tiếp từ hệ th�
 
 ---
 
+### 3. 🛡️ Kiến Trúc DTO (Data Transfer Objects) & Standard Response Envelope
+* **Phân tách hoàn toàn Database Entity và API Contract**: Áp dụng DTO Layer (`server/src/dtos/`) loại bỏ hoàn toàn việc controllers nhận `req.body` thô hay trả trực tiếp Mongoose Document.
+* **DTO Validation & Sanitization Engine (`validator.js`)**:
+  * Tự động kiểm tra nghiêm ngặt kiểu dữ liệu, bắt buộc/tùy chọn, độ dài chuỗi, regex email/phone, chính sách độ phức tạp mật khẩu.
+  * Loại bỏ các trường rác không khai báo (anti-pollution) và vô hiệu hóa NoSQL Injection trước khi payload đi vào controller.
+* **Output Serializer DTOs (`UserResponseDto`, `OrderResponseDto`, `ProductResponseDto`)**:
+  * Bảo mật đa tầng: Ẩn triệt để các trường nhạy cảm như `password hash`, `twoFactorOtp`, `twoFactorSecret`, `resetPasswordToken`, `tokenVersion`.
+  * Ánh xạ các trường định danh sang mã UUID v4 an toàn trước khi gửi về client.
+* **Standard API Response Envelope (`ApiResponse.js`)**:
+  * Khuôn mẫu phản hồi đồng nhất: `{ success, statusCode, message, data, meta: { timestamp, requestId } }`.
+  * Tương thích ngược 100% (Backward Compatibility) giúp toàn bộ giao diện Frontend React UI hoạt động mượt mà.
+
+---
+
+### 4. ⚙️ Database Stored Procedures & MongoDB $facet Aggregation Pipelines
+* **Xóa bỏ triệt để xử lý dữ liệu in-memory trên RAM Node.js**: Không dùng `Order.find().filter().reduce()` (nguy cơ OOM - Out of Memory khi hệ thống đạt hàng trăm nghìn đơn hàng).
+* **Native MongoDB $facet Aggregation Procedure (`analyticsProcedure.js`)**:
+  * Đẩy toàn bộ tác vụ tính toán xuống tầng Database Engine viết bằng C++ của MongoDB.
+  * Chạy song song 5 nhánh phân tích độc lập (Tổng doanh thu, Đếm trạng thái đơn hàng, Chuỗi thời gian doanh thu 7 ngày, Phân loại phương thức thanh toán, Phân tích tồn kho sản phẩm) trong **đúng 1 roundtrip truy vấn duy nhất** tận dụng Compound Indexes.
+* **Atomic Inventory Procedures (`inventoryProcedure.js`)**:
+  * Thủ tục trừ kho nguyên tử chống race condition mùa Flash Sale.
+  * Thủ tục hoàn kho nguyên tử (Compensating Restitution Procedure) tự động phục hồi tồn kho chính xác khi đơn hàng bị hủy hoặc hoàn tiền.
+
+---
+
+### 5. 🆔 Định Danh UUID v4 (Request Tracing & Idempotency Key)
+* **Distributed Request Tracing (Correlation ID)**: Middleware `correlationId.js` tự động sinh mã RFC4122 UUID v4 (`X-Request-Id`) cho mỗi lượt gọi HTTP. Mã trace được gắn chặt vào mọi dòng log và trả về header giúp truy vết nguyên nhân sự cố trong vài giây.
+* **Public Tracking UUID**: Cung cấp cơ chế tra cứu vận đơn bằng UUID ngẫu nhiên thay vì số thứ tự hay ObjectID của MongoDB, triệt tiêu hoàn toàn rủi ro tấn công dò quét (Enumeration & IDOR).
+* **Idempotency Key Protection (`idempotency.js`)**: Hỗ trợ header `X-Idempotency-Key` (UUID) bảo vệ các endpoint tạo đơn hàng và thanh toán, đảm bảo an toàn tuyệt đối khi khách hàng bấm gửi nhiều lần do gián đoạn mạng.
+
+---
+
+### 6. 📜 Winston Structured Logging Stack & Daily Rotate File
+* **Hệ thống nhật ký chuyên nghiệp**: Thay thế hoàn toàn `console.log` bằng Winston Logger với cơ chế xoay vòng file tự động theo ngày (`winston-daily-rotate-file`).
+* **Phân cấp log**: `info`, `warn`, `error`, `http`, `debug`.
+* **Lưu trữ tự động**: Tự động chia file `application-%DATE%.log`, `error-%DATE%.log`, `access-%DATE%.log` và nén zip lưu trữ 14–30 ngày.
+* **Gắn kèm Correlation ID**: Mọi dòng log đều tự động mang theo `[Trace: UUID]` của request tương ứng.
+* **Bộ đệm giám sát thời gian thực**: Hỗ trợ xem nhanh các log gần nhất phục vụ việc vận hành và kiểm thử.
+
+---
+
 ## 🌟 Bảng Tổng Hợp Tính Năng Hệ Thống
 
 | Phân hệ | Tính năng nổi bật | Công nghệ / Ghi chú |
@@ -188,9 +232,13 @@ Toàn bộ hình ảnh dưới đây được chụp trực tiếp từ hệ th�
 | **Tìm kiếm & Bộ lọc** | Lọc theo 6 danh mục, 5 size, thanh trượt giá, sắp xếp đa chiều | Client-side & Server query |
 | **Giỏ hàng & Đặt hàng** | Drawer trượt, freeship bar, áp dụng mã giảm giá, tự động điền địa chỉ | React Context & LocalStorage |
 | **Cổng thanh toán** | COD, MoMo QR/ATM (HMAC-SHA256), VNPay (HMAC-SHA512) | Sandbox API chuẩn bảo mật ngân hàng |
+| **Kiến trúc DTO & Response** | Request DTO Validation, Serializer che giấu mật khẩu/OTP, Standard Envelope | DTO Layer, Sanitization Engine, ApiResponse |
+| **Database Procedures** | Thủ tục phân tích MongoDB $facet Aggregation đa luồng, Atomic Allocation | MongoDB Native C++ Aggregation Pipeline |
+| **UUID Tracing & Idempotency** | Mã trace request X-Request-Id, UUID tra cứu công khai, chống trùng lặp đơn | RFC4122 UUID v4, Idempotency Middleware |
+| **Logging Stack** | Quản lý log tập trung, xoay vòng file theo ngày (Daily Rotate File), gắn trace | Winston, winston-daily-rotate-file |
 | **Tra cứu đơn hàng Realtime** | Timeline vận chuyển live sync (SSE), đồng hồ đếm ngược 15:00, mã QR kiểm tra | Server-Sent Events (SSE Room Isolation) |
 | **Hỗ trợ & Live Chat** | FAQ Accordion, Tạo Ticket `#TK-XXXXXX`, Bot tư vấn AI 24/7 | MongoDB Collection `Ticket` & `FAQ` |
-| **Tài khoản cá nhân** | Hồ sơ, Sổ địa chỉ mặc định, Đơn mua 6 trạng thái, Đánh giá có ảnh, Kho voucher, Bảo mật đa thiết bị | JWT Authentication & Token Versioning |
+| **Tài khoản cá nhân** | Hồ sơ, Sổ địa chỉ mặc định, Đơn mua 6 trạng thái, Đánh giá có ảnh, Kho voucher | JWT Authentication & Token Versioning |
 | **Admin Dashboard Realtime** | Auto-update doanh thu & đơn mới qua SSE, chuông báo Web Audio, biểu đồ phân tích | Aggregation Pipeline MongoDB & SSE Stream |
 | **Admin Kho & Đơn hàng** | Cập nhật trạng thái đơn, in hóa đơn VAT QR, cảnh báo hết hàng, hoàn voucher/stock khi hủy đơn | Transaction Logic & Mongoose Models |
 | **Order Expiry Worker** | Tự động hủy đơn VNPay/MoMo quá 15p, rollback tồn kho & voucher, quét nền 60s | Scheduled Background Worker |
@@ -222,6 +270,9 @@ Toàn bộ hình ảnh dưới đây được chụp trực tiếp từ hệ th�
 - **Backend**:
   - Node.js & Express.js (RESTful API Architecture)
   - Mongoose & MongoDB Atlas
+  - **Data Transfer Objects (DTO Layer)** & Custom Validation Engine
+  - **Winston & Winston Daily Rotate File** (Structured Logging Stack)
+  - **UUID v4** (Distributed Request Tracing & Idempotency Key)
   - **Native Server-Sent Events (SSE)** Engine (Zero external dependencies)
   - **Scheduled Order Expiry Worker** (Tự động quét & rollback tồn kho)
   - JWT (JSON Web Tokens) & Bcryptjs
@@ -247,8 +298,11 @@ npm install
 ### 2. Kiểm thử tự động (Automated Test Suites):
 Hệ thống tích hợp sẵn các bộ kiểm thử tự động toàn diện:
 ```bash
-# Chạy bộ test tính năng Realtime SSE & Order Expiry Worker (25/25 bài test pass 100%)
+# Chạy bộ test toàn diện kiến trúc Backend Enterprise (DTO, UUID, Logging Stack, Response Envelope, Procedures)
 cd server
+npm test
+
+# Chạy bộ test tính năng Realtime SSE & Order Expiry Worker
 npm run test:realtime
 
 # Chạy bộ test bảo mật Security Shield & Stealth Cloaking
